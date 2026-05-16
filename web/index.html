@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>网易云歌单下载</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">music-lib web</p>
+            <h1>网易云歌单下载</h1>
+          </div>
+          <div class="config" id="configText">读取配置中...</div>
+        </header>
+
+        <form class="input-row" id="playlistForm">
+          <input id="playlistInput" name="link" placeholder="粘贴网易云歌单链接，或输入歌单 ID" autocomplete="off" />
+          <button type="submit">解析歌单</button>
+        </form>
+
+        <label class="path-field">
+          <span>下载路径</span>
+          <input id="downloadDirInput" name="download_dir" placeholder="./download" autocomplete="off" />
+        </label>
+
+        <div class="notice" id="notice"></div>
+
+        <section class="playlist-panel hidden" id="playlistPanel">
+          <img class="cover" id="playlistCover" alt="" />
+          <div class="playlist-main">
+            <div class="playlist-heading">
+              <div>
+                <h2 id="playlistName"></h2>
+                <p id="playlistMeta"></p>
+              </div>
+              <button id="downloadButton" type="button">开始下载</button>
+            </div>
+            <div class="song-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>歌曲</th>
+                    <th>歌手</th>
+                    <th>专辑</th>
+                  </tr>
+                </thead>
+                <tbody id="songRows"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="job-panel hidden" id="jobPanel">
+          <div class="job-header">
+            <div>
+              <p class="eyebrow">下载任务</p>
+              <h2 id="jobTitle">等待开始</h2>
+            </div>
+            <button id="retryButton" type="button" disabled>重试失败项</button>
+          </div>
+          <div class="progress">
+            <div class="progress-bar" id="progressBar"></div>
+          </div>
+          <div class="stats">
+            <span id="jobStatus">queued</span>
+            <span id="jobCounts">0 / 0</span>
+            <span id="currentSong"></span>
+          </div>
+          <div class="result-list" id="resultList"></div>
+        </section>
+      </section>
+
+      <aside class="side">
+        <h2>下载规则</h2>
+        <p>每个歌单会保存到下载根目录下与歌单名相同的新目录。同名目录存在时会复用，已存在的同名音频不会重复下载。文件名为“歌曲名 - 歌手”。</p>
+        <h2>使用提示</h2>
+        <p>第一版只支持公开歌单。VIP 或版权受限歌曲可能无法获取下载地址，会被记录到失败列表。</p>
+        <h2>声明</h2>
+        <p id="disclaimer">本工具仅用于学习和技术研究。请遵守法律法规，不要商用。</p>
+      </aside>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

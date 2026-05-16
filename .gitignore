@@ -1,0 +1,5 @@
+download/
+Downloads/
+/music-lib-web
+*.part
+.DS_Store
