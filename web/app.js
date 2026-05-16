@@ -54,7 +54,8 @@ function escapeText(value) {
 async function loadConfig() {
   try {
     const cfg = await api("/api/config");
-    configText.textContent = `${cfg.addr} · ${cfg.download_dir} · 并发 ${cfg.concurrency}`;
+    const cookieState = cfg.has_cookie ? "已记住 Cookie" : "未设置 Cookie";
+    configText.textContent = `${cfg.addr} · ${cfg.download_dir} · 并发 ${cfg.concurrency} · ${cookieState}`;
     downloadDirInput.value = cfg.download_dir || "./Downloads";
     disclaimer.textContent = cfg.disclaimer;
   } catch (error) {

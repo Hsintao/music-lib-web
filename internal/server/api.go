@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/guohuiyuan/music-lib/model"
 	"music-lib-web/internal/config"
@@ -20,10 +21,12 @@ type MusicService interface {
 }
 
 type API struct {
-	cfg   config.Config
-	music MusicService
-	jobs  *jobs.Store
-	mux   *http.ServeMux
+	cfg           config.Config
+	music         MusicService
+	jobs          *jobs.Store
+	mux           *http.ServeMux
+	cookieMu      sync.RWMutex
+	defaultCookie string
 }
 
 type badRequest string
@@ -60,6 +63,7 @@ func (a *API) handleConfig(w http.ResponseWriter, r *http.Request) {
 		"download_dir": a.cfg.DownloadDir,
 		"concurrency":  a.cfg.Concurrency,
 		"disclaimer":   Disclaimer,
+		"has_cookie":   a.hasCookie(),
 	})
 }
 
@@ -72,7 +76,8 @@ func (a *API) handleParsePlaylist(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	playlist, songs, err := a.music.ParsePlaylist(r.Context(), req.Link, req.Cookie)
+	cookie := a.effectiveCookie(req.Cookie)
+	playlist, songs, err := a.music.ParsePlaylist(r.Context(), req.Link, cookie)
 	if err != nil {
 		writeError(w, statusForError(err), err)
 		return
@@ -90,7 +95,8 @@ func (a *API) handleCreateJob(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	playlist, songs, err := a.music.ParsePlaylist(r.Context(), req.PlaylistLink, req.Cookie)
+	cookie := a.effectiveCookie(req.Cookie)
+	playlist, songs, err := a.music.ParsePlaylist(r.Context(), req.PlaylistLink, cookie)
 	if err != nil {
 		writeError(w, statusForError(err), err)
 		return
@@ -99,7 +105,7 @@ func (a *API) handleCreateJob(w http.ResponseWriter, r *http.Request) {
 	if downloadDir == "" {
 		downloadDir = a.cfg.DownloadDir
 	}
-	job := a.jobs.Create(playlist, songs, downloadDir, req.Cookie)
+	job := a.jobs.Create(playlist, songs, downloadDir, cookie)
 	go a.jobs.Run(context.Background(), job.ID)
 	writeJSON(w, http.StatusAccepted, job)
 }
@@ -122,6 +128,25 @@ func (a *API) handleRetryJob(w http.ResponseWriter, r *http.Request) {
 	}
 	job, _ := a.jobs.Get(id)
 	writeJSON(w, http.StatusAccepted, job)
+}
+
+func (a *API) effectiveCookie(candidate string) string {
+	candidate = strings.TrimSpace(candidate)
+	if candidate != "" {
+		a.cookieMu.Lock()
+		a.defaultCookie = candidate
+		a.cookieMu.Unlock()
+		return candidate
+	}
+	a.cookieMu.RLock()
+	defer a.cookieMu.RUnlock()
+	return a.defaultCookie
+}
+
+func (a *API) hasCookie() bool {
+	a.cookieMu.RLock()
+	defer a.cookieMu.RUnlock()
+	return strings.TrimSpace(a.defaultCookie) != ""
 }
 
 func decodeJSON(r *http.Request, dst any) error {
