@@ -58,6 +58,7 @@ func (a *API) routes() {
 	a.mux.HandleFunc("POST /api/jobs", a.handleCreateJob)
 	a.mux.HandleFunc("GET /api/jobs/{id}", a.handleGetJob)
 	a.mux.HandleFunc("POST /api/jobs/{id}/retry", a.handleRetryJob)
+	a.mux.HandleFunc("POST /api/jobs/{id}/cancel", a.handleCancelJob)
 }
 
 func (a *API) handleConfig(w http.ResponseWriter, r *http.Request) {
@@ -127,6 +128,16 @@ func (a *API) handleGetJob(w http.ResponseWriter, r *http.Request) {
 func (a *API) handleRetryJob(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if err := a.jobs.RetryFailures(r.Context(), id); err != nil {
+		writeError(w, http.StatusNotFound, err)
+		return
+	}
+	job, _ := a.jobs.Get(id)
+	writeJSON(w, http.StatusAccepted, job)
+}
+
+func (a *API) handleCancelJob(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if err := a.jobs.Cancel(id); err != nil {
 		writeError(w, http.StatusNotFound, err)
 		return
 	}

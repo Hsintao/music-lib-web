@@ -17,6 +17,7 @@ const (
 	StatusCompleted           Status = "completed"
 	StatusCompletedWithErrors Status = "completed_with_errors"
 	StatusFailed              Status = "failed"
+	StatusCanceled            Status = "canceled"
 )
 
 type SongStatus string
@@ -58,6 +59,7 @@ type Job struct {
 
 	songs  []model.Song
 	Cookie string `json:"-"`
+	cancel context.CancelFunc
 }
 
 type Store struct {
@@ -138,6 +140,24 @@ func (s *Store) RetryFailures(ctx context.Context, id string) error {
 	return nil
 }
 
+func (s *Store) Cancel(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	job, ok := s.jobs[id]
+	if !ok {
+		return fmt.Errorf("job %s not found", id)
+	}
+	if job.cancel != nil {
+		job.cancel()
+	}
+	if job.Status == StatusQueued || job.Status == StatusRunning {
+		job.Status = StatusCanceled
+		job.CurrentSong = ""
+		job.UpdatedAt = time.Now()
+	}
+	return nil
+}
+
 func (s *Store) run(ctx context.Context, id string, retryOnly bool) {
 	s.mu.Lock()
 	job, ok := s.jobs[id]
@@ -147,6 +167,8 @@ func (s *Store) run(ctx context.Context, id string, retryOnly bool) {
 	}
 	job.Status = StatusRunning
 	job.CurrentSong = ""
+	runCtx, cancel := context.WithCancel(ctx)
+	job.cancel = cancel
 	job.UpdatedAt = time.Now()
 	indexes := s.pendingIndexes(job, retryOnly)
 	for _, idx := range indexes {
@@ -160,7 +182,7 @@ func (s *Store) run(ctx context.Context, id string, retryOnly bool) {
 	sem := make(chan struct{}, s.concurrency)
 	var wg sync.WaitGroup
 	for _, idx := range indexes {
-		if ctx.Err() != nil {
+		if runCtx.Err() != nil {
 			break
 		}
 		idx := idx
@@ -169,7 +191,7 @@ func (s *Store) run(ctx context.Context, id string, retryOnly bool) {
 		go func() {
 			defer wg.Done()
 			defer func() { <-sem }()
-			s.runOne(ctx, id, idx)
+			s.runOne(runCtx, id, idx)
 		}()
 	}
 	wg.Wait()
@@ -177,10 +199,11 @@ func (s *Store) run(ctx context.Context, id string, retryOnly bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	job = s.jobs[id]
+	job.cancel = nil
 	s.recount(job)
 	job.CurrentSong = ""
-	if ctx.Err() != nil && job.SuccessCount == 0 {
-		job.Status = StatusFailed
+	if runCtx.Err() != nil {
+		job.Status = StatusCanceled
 	} else if job.FailureCount > 0 {
 		job.Status = StatusCompletedWithErrors
 	} else {
@@ -262,5 +285,6 @@ func cloneJob(job *Job) *Job {
 	cp.Results = append([]SongResult(nil), job.Results...)
 	cp.songs = append([]model.Song(nil), job.songs...)
 	cp.Cookie = ""
+	cp.cancel = nil
 	return &cp
 }

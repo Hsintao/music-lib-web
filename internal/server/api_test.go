@@ -119,6 +119,27 @@ func TestCreateJobAcceptsLosslessQuality(t *testing.T) {
 	}
 }
 
+func TestCancelJobEndpoint(t *testing.T) {
+	api := New(config.Default(), &fakeMusicService{}, jobs.NewStore(fakeJobDownloader{}, 1))
+	create := httptest.NewRequest(http.MethodPost, "/api/jobs", bytes.NewBufferString(`{"playlist_link":"https://music.163.com/#/playlist?id=42"}`))
+	rec := httptest.NewRecorder()
+	api.ServeHTTP(rec, create)
+	var created struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("Unmarshal create response: %v", err)
+	}
+
+	cancel := httptest.NewRequest(http.MethodPost, "/api/jobs/"+created.ID+"/cancel", nil)
+	rec = httptest.NewRecorder()
+	api.ServeHTTP(rec, cancel)
+
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusAccepted, rec.Body.String())
+	}
+}
+
 func TestCreateJobAcceptsCookieWithoutEchoingIt(t *testing.T) {
 	api := New(config.Default(), &fakeMusicService{}, jobs.NewStore(fakeJobDownloader{}, 1))
 	body := bytes.NewBufferString(`{"playlist_link":"https://music.163.com/#/playlist?id=42","cookie":"MUSIC_U=secret"}`)

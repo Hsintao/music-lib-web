@@ -20,6 +20,7 @@ const currentSong = document.querySelector("#currentSong");
 const progressBar = document.querySelector("#progressBar");
 const resultList = document.querySelector("#resultList");
 const retryButton = document.querySelector("#retryButton");
+const cancelButton = document.querySelector("#cancelButton");
 
 let activePlaylistLink = "";
 let activeJobID = "";
@@ -125,6 +126,21 @@ retryButton.addEventListener("click", async () => {
   }
 });
 
+cancelButton.addEventListener("click", async () => {
+  if (!activeJobID) return;
+  cancelButton.disabled = true;
+  showNotice("正在停止下载...");
+  try {
+    const job = await api(`/api/jobs/${activeJobID}/cancel`, { method: "POST" });
+    renderJob(job);
+    window.clearInterval(pollTimer);
+    downloadButton.disabled = false;
+    showNotice("下载已停止。");
+  } catch (error) {
+    showNotice(error.message, true);
+  }
+});
+
 function renderPlaylist(playlist, songs) {
   playlistPanel.classList.remove("hidden");
   playlistName.textContent = playlist?.name || "未命名歌单";
@@ -152,7 +168,7 @@ async function fetchJob() {
   try {
     const job = await api(`/api/jobs/${activeJobID}`);
     renderJob(job);
-    if (["completed", "completed_with_errors", "failed"].includes(job.status)) {
+    if (["completed", "completed_with_errors", "failed", "canceled"].includes(job.status)) {
       window.clearInterval(pollTimer);
       downloadButton.disabled = false;
     }
@@ -171,6 +187,7 @@ function renderJob(job) {
   jobCounts.textContent = `${done} / ${total} · 成功 ${job.success_count || 0} · 失败 ${job.failure_count || 0}`;
   currentSong.textContent = job.current_song ? `当前：${job.current_song}` : "";
   progressBar.style.width = `${percent}%`;
+  cancelButton.disabled = job.status !== "running";
   retryButton.disabled = (job.failure_count || 0) === 0 || job.status === "running";
   resultList.innerHTML = (job.results || []).map((result) => `
     <div class="result">

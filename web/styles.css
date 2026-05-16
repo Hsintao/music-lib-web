@@ -57,12 +57,31 @@ select {
 
 .topbar,
 .playlist-heading,
-.job-header,
 .stats {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+}
+
+.job-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.job-actions {
+  display: flex;
+  gap: 10px;
+}
+
+#cancelButton {
+  background: #4a4138;
+}
+
+#cancelButton:hover {
+  background: #2d2822;
 }
 
 .eyebrow {

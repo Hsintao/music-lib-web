@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/guohuiyuan/music-lib/model"
 )
@@ -13,12 +14,27 @@ type fakeDownloader struct {
 	lastRoot    string
 	lastCookie  string
 	lastQuality string
+	block       chan struct{}
+	started     chan struct{}
 }
 
 func (f *fakeDownloader) DownloadSong(ctx context.Context, playlist *model.Playlist, song model.Song, index int, downloadRoot string, cookie string, quality string) (string, error) {
 	f.lastRoot = downloadRoot
 	f.lastCookie = cookie
 	f.lastQuality = quality
+	if f.started != nil {
+		select {
+		case f.started <- struct{}{}:
+		default:
+		}
+	}
+	if f.block != nil {
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-f.block:
+		}
+	}
 	if f.fail[song.ID] {
 		return "", errors.New("network failed")
 	}
@@ -105,5 +121,40 @@ func TestJobPassesQualityToDownloader(t *testing.T) {
 	got, _ := store.Get(job.ID)
 	if got.Quality != "lossless" {
 		t.Fatalf("job quality = %q, want lossless", got.Quality)
+	}
+}
+
+func TestCancelRunningJob(t *testing.T) {
+	downloader := &fakeDownloader{
+		fail:    map[string]bool{},
+		block:   make(chan struct{}),
+		started: make(chan struct{}, 1),
+	}
+	store := NewStore(downloader, 1)
+	playlist := &model.Playlist{ID: "p1", Name: "列表"}
+	job := store.Create(playlist, []model.Song{{ID: "1", Name: "A", Artist: "AA"}}, "/tmp/music", "", "mp3")
+
+	done := make(chan struct{})
+	go func() {
+		store.Run(context.Background(), job.ID)
+		close(done)
+	}()
+	select {
+	case <-downloader.started:
+	case <-time.After(time.Second):
+		t.Fatal("download did not start")
+	}
+	if err := store.Cancel(job.ID); err != nil {
+		t.Fatalf("Cancel returned error: %v", err)
+	}
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("run did not finish after cancel")
+	}
+
+	got, _ := store.Get(job.ID)
+	if got.Status != StatusCanceled {
+		t.Fatalf("Status = %q, want %q", got.Status, StatusCanceled)
 	}
 }
