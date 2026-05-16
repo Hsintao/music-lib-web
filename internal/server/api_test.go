@@ -16,7 +16,7 @@ import (
 
 type fakeMusicService struct{}
 
-func (fakeMusicService) ParsePlaylist(ctx context.Context, link string) (*model.Playlist, []model.Song, error) {
+func (fakeMusicService) ParsePlaylist(ctx context.Context, link string, cookie string) (*model.Playlist, []model.Song, error) {
 	if strings.TrimSpace(link) == "" {
 		return nil, nil, ErrBadRequest("playlist link is required")
 	}
@@ -25,7 +25,7 @@ func (fakeMusicService) ParsePlaylist(ctx context.Context, link string) (*model.
 
 type fakeJobDownloader struct{}
 
-func (fakeJobDownloader) DownloadSong(ctx context.Context, playlist *model.Playlist, song model.Song, index int, downloadRoot string) (string, error) {
+func (fakeJobDownloader) DownloadSong(ctx context.Context, playlist *model.Playlist, song model.Song, index int, downloadRoot string, cookie string) (string, error) {
 	return "/tmp/song.mp3", nil
 }
 
@@ -89,5 +89,21 @@ func TestCreateJobAcceptsCustomDownloadDir(t *testing.T) {
 	}
 	if created.DownloadDir != "/tmp/custom-music" {
 		t.Fatalf("DownloadDir = %q, want custom dir", created.DownloadDir)
+	}
+}
+
+func TestCreateJobAcceptsCookieWithoutEchoingIt(t *testing.T) {
+	api := New(config.Default(), fakeMusicService{}, jobs.NewStore(fakeJobDownloader{}, 1))
+	body := bytes.NewBufferString(`{"playlist_link":"https://music.163.com/#/playlist?id=42","cookie":"MUSIC_U=secret"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/jobs", body)
+	rec := httptest.NewRecorder()
+
+	api.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusAccepted, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "MUSIC_U=secret") {
+		t.Fatalf("response exposed cookie: %s", rec.Body.String())
 	}
 }

@@ -27,6 +27,11 @@
           <input id="downloadDirInput" name="download_dir" placeholder="./download" autocomplete="off" />
         </label>
 
+        <label class="cookie-field">
+          <span>网易云 Cookie</span>
+          <textarea id="cookieInput" name="cookie" placeholder="可选。填写 MUSIC_U=... 等 Cookie 后，会尝试获取账号可用的更高音质；Cookie 只在本地本次任务中使用。"></textarea>
+        </label>
+
         <div class="notice" id="notice"></div>
 
         <section class="playlist-panel hidden" id="playlistPanel">
@@ -79,7 +84,7 @@
         <h2>下载规则</h2>
         <p>每个歌单会保存到下载根目录下与歌单名相同的新目录。同名目录存在时会复用，已存在的同名音频不会重复下载。文件名为“歌曲名 - 歌手”。</p>
         <h2>使用提示</h2>
-        <p>第一版只支持公开歌单。VIP 或版权受限歌曲可能无法获取下载地址，会被记录到失败列表。</p>
+        <p>公开歌单可以不填 Cookie。填写网易云 Cookie 后，后端会用它尝试获取账号可用的更高音质；Cookie 不会写入文件或 API 响应。</p>
         <h2>声明</h2>
         <p id="disclaimer">本工具仅用于学习和技术研究。请遵守法律法规，不要商用。</p>
       </aside>

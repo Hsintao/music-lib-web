@@ -9,12 +9,14 @@ import (
 )
 
 type fakeDownloader struct {
-	fail     map[string]bool
-	lastRoot string
+	fail       map[string]bool
+	lastRoot   string
+	lastCookie string
 }
 
-func (f *fakeDownloader) DownloadSong(ctx context.Context, playlist *model.Playlist, song model.Song, index int, downloadRoot string) (string, error) {
+func (f *fakeDownloader) DownloadSong(ctx context.Context, playlist *model.Playlist, song model.Song, index int, downloadRoot string, cookie string) (string, error) {
 	f.lastRoot = downloadRoot
+	f.lastCookie = cookie
 	if f.fail[song.ID] {
 		return "", errors.New("network failed")
 	}
@@ -30,7 +32,7 @@ func TestJobCompletesWithErrorsAndRetriesFailures(t *testing.T) {
 		{ID: "2", Name: "B", Artist: "BB"},
 	}
 
-	job := store.Create(playlist, songs, "/tmp/music")
+	job := store.Create(playlist, songs, "/tmp/music", "")
 	store.Run(context.Background(), job.ID)
 
 	got, ok := store.Get(job.ID)
@@ -61,11 +63,28 @@ func TestJobPassesCustomDownloadRootToDownloader(t *testing.T) {
 	downloader := &fakeDownloader{fail: map[string]bool{}}
 	store := NewStore(downloader, 1)
 	playlist := &model.Playlist{ID: "p1", Name: "列表"}
-	job := store.Create(playlist, []model.Song{{ID: "1", Name: "A", Artist: "AA"}}, "/custom/root")
+	job := store.Create(playlist, []model.Song{{ID: "1", Name: "A", Artist: "AA"}}, "/custom/root", "")
 
 	store.Run(context.Background(), job.ID)
 
 	if downloader.lastRoot != "/custom/root" {
 		t.Fatalf("download root = %q, want %q", downloader.lastRoot, "/custom/root")
+	}
+}
+
+func TestJobPassesCookieToDownloaderWithoutExposingIt(t *testing.T) {
+	downloader := &fakeDownloader{fail: map[string]bool{}}
+	store := NewStore(downloader, 1)
+	playlist := &model.Playlist{ID: "p1", Name: "列表"}
+	job := store.Create(playlist, []model.Song{{ID: "1", Name: "A", Artist: "AA"}}, "/tmp/music", "MUSIC_U=secret")
+
+	store.Run(context.Background(), job.ID)
+
+	if downloader.lastCookie != "MUSIC_U=secret" {
+		t.Fatalf("cookie = %q, want cookie passed to downloader", downloader.lastCookie)
+	}
+	got, _ := store.Get(job.ID)
+	if got.Cookie != "" {
+		t.Fatal("job snapshot exposed cookie")
 	}
 }

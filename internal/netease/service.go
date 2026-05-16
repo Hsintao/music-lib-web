@@ -41,11 +41,12 @@ func NormalizePlaylistInput(input string) (string, error) {
 	return input, nil
 }
 
-func (s *Service) ParsePlaylist(ctx context.Context, link string) (*model.Playlist, []model.Song, error) {
+func (s *Service) ParsePlaylist(ctx context.Context, link string, cookie string) (*model.Playlist, []model.Song, error) {
 	normalized, err := NormalizePlaylistInput(link)
 	if err != nil {
 		return nil, nil, err
 	}
+	client := libnetease.New(strings.TrimSpace(cookie))
 	type result struct {
 		playlist *model.Playlist
 		songs    []model.Song
@@ -53,7 +54,7 @@ func (s *Service) ParsePlaylist(ctx context.Context, link string) (*model.Playli
 	}
 	ch := make(chan result, 1)
 	go func() {
-		playlist, songs, err := libnetease.ParsePlaylist(normalized)
+		playlist, songs, err := client.ParsePlaylist(normalized)
 		ch <- result{playlist: playlist, songs: songs, err: err}
 	}()
 	select {
@@ -90,7 +91,7 @@ func ResolveSongPath(dir string, index int, song model.Song) (string, bool) {
 	return path, false
 }
 
-func (s *Service) DownloadSong(ctx context.Context, playlist *model.Playlist, song model.Song, index int, downloadRoot string) (string, error) {
+func (s *Service) DownloadSong(ctx context.Context, playlist *model.Playlist, song model.Song, index int, downloadRoot string, cookie string) (string, error) {
 	dir := PlaylistDownloadDir(downloadRoot, playlist)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
@@ -99,7 +100,7 @@ func (s *Service) DownloadSong(ctx context.Context, playlist *model.Playlist, so
 		return path, nil
 	}
 
-	downloadURL, err := libnetease.GetDownloadURL(&song)
+	downloadURL, err := libnetease.New(strings.TrimSpace(cookie)).GetDownloadURL(&song)
 	if err != nil {
 		return "", friendlyDownloadError(err)
 	}

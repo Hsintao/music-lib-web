@@ -28,7 +28,8 @@ body {
 }
 
 button,
-input {
+input,
+textarea {
   font: inherit;
 }
 
@@ -103,16 +104,22 @@ h2 {
   margin: 28px 0 12px;
 }
 
-.path-field {
+.path-field,
+.cookie-field {
   display: grid;
   grid-template-columns: 88px minmax(0, 1fr);
-  align-items: center;
+  align-items: start;
   gap: 12px;
   margin-bottom: 16px;
   color: var(--muted);
 }
 
-input {
+.path-field {
+  align-items: center;
+}
+
+input,
+textarea {
   width: 100%;
   border: 1px solid var(--line);
   background: white;
@@ -120,7 +127,15 @@ input {
   outline: none;
 }
 
-input:focus {
+textarea {
+  min-height: 92px;
+  resize: vertical;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+
+input:focus,
+textarea:focus {
   border-color: var(--accent);
 }
 
@@ -291,7 +306,8 @@ th {
   .job-header,
   .stats,
   .input-row,
-  .path-field {
+  .path-field,
+  .cookie-field {
     display: grid;
     grid-template-columns: 1fr;
   }

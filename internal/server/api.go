@@ -16,7 +16,7 @@ import (
 const Disclaimer = "本工具仅用于学习和技术研究。请遵守法律法规，不要商用；下载的资源请按上游项目提示及时删除。music-lib 使用 AGPL-3.0 许可证。"
 
 type MusicService interface {
-	ParsePlaylist(ctx context.Context, link string) (*model.Playlist, []model.Song, error)
+	ParsePlaylist(ctx context.Context, link string, cookie string) (*model.Playlist, []model.Song, error)
 }
 
 type API struct {
@@ -65,13 +65,14 @@ func (a *API) handleConfig(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) handleParsePlaylist(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Link string `json:"link"`
+		Link   string `json:"link"`
+		Cookie string `json:"cookie"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	playlist, songs, err := a.music.ParsePlaylist(r.Context(), req.Link)
+	playlist, songs, err := a.music.ParsePlaylist(r.Context(), req.Link, req.Cookie)
 	if err != nil {
 		writeError(w, statusForError(err), err)
 		return
@@ -83,12 +84,13 @@ func (a *API) handleCreateJob(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		PlaylistLink string `json:"playlist_link"`
 		DownloadDir  string `json:"download_dir"`
+		Cookie       string `json:"cookie"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	playlist, songs, err := a.music.ParsePlaylist(r.Context(), req.PlaylistLink)
+	playlist, songs, err := a.music.ParsePlaylist(r.Context(), req.PlaylistLink, req.Cookie)
 	if err != nil {
 		writeError(w, statusForError(err), err)
 		return
@@ -97,7 +99,7 @@ func (a *API) handleCreateJob(w http.ResponseWriter, r *http.Request) {
 	if downloadDir == "" {
 		downloadDir = a.cfg.DownloadDir
 	}
-	job := a.jobs.Create(playlist, songs, downloadDir)
+	job := a.jobs.Create(playlist, songs, downloadDir, req.Cookie)
 	go a.jobs.Run(context.Background(), job.ID)
 	writeJSON(w, http.StatusAccepted, job)
 }

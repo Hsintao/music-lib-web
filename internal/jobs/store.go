@@ -30,7 +30,7 @@ const (
 )
 
 type Downloader interface {
-	DownloadSong(ctx context.Context, playlist *model.Playlist, song model.Song, index int, downloadRoot string) (string, error)
+	DownloadSong(ctx context.Context, playlist *model.Playlist, song model.Song, index int, downloadRoot string, cookie string) (string, error)
 }
 
 type SongResult struct {
@@ -55,7 +55,8 @@ type Job struct {
 	CreatedAt    time.Time      `json:"created_at"`
 	UpdatedAt    time.Time      `json:"updated_at"`
 
-	songs []model.Song
+	songs  []model.Song
+	Cookie string `json:"-"`
 }
 
 type Store struct {
@@ -76,7 +77,7 @@ func NewStore(downloader Downloader, concurrency int) *Store {
 	}
 }
 
-func (s *Store) Create(playlist *model.Playlist, songs []model.Song, downloadDir string) *Job {
+func (s *Store) Create(playlist *model.Playlist, songs []model.Song, downloadDir string, cookie string) *Job {
 	now := time.Now()
 	id := fmt.Sprintf("%d", now.UnixNano())
 	results := make([]SongResult, len(songs))
@@ -97,6 +98,7 @@ func (s *Store) Create(playlist *model.Playlist, songs []model.Song, downloadDir
 		CreatedAt:   now,
 		UpdatedAt:   now,
 		songs:       append([]model.Song(nil), songs...),
+		Cookie:      cookie,
 	}
 	if playlist != nil {
 		job.Playlist = *playlist
@@ -193,9 +195,10 @@ func (s *Store) runOne(ctx context.Context, id string, idx int) {
 	job.UpdatedAt = time.Now()
 	playlist := job.Playlist
 	downloadDir := job.DownloadDir
+	cookie := job.Cookie
 	s.mu.Unlock()
 
-	filePath, err := s.downloader.DownloadSong(ctx, &playlist, song, idx+1, downloadDir)
+	filePath, err := s.downloader.DownloadSong(ctx, &playlist, song, idx+1, downloadDir, cookie)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -245,5 +248,6 @@ func cloneJob(job *Job) *Job {
 	cp := *job
 	cp.Results = append([]SongResult(nil), job.Results...)
 	cp.songs = append([]model.Song(nil), job.songs...)
+	cp.Cookie = ""
 	return &cp
 }

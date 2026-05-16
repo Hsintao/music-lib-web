@@ -1,6 +1,7 @@
 const form = document.querySelector("#playlistForm");
 const input = document.querySelector("#playlistInput");
 const downloadDirInput = document.querySelector("#downloadDirInput");
+const cookieInput = document.querySelector("#cookieInput");
 const notice = document.querySelector("#notice");
 const configText = document.querySelector("#configText");
 const disclaimer = document.querySelector("#disclaimer");
@@ -74,7 +75,7 @@ form.addEventListener("submit", async (event) => {
   try {
     const data = await api("/api/playlists/parse", {
       method: "POST",
-      body: JSON.stringify({ link }),
+      body: JSON.stringify({ link, cookie: cookieInput.value.trim() }),
     });
     renderPlaylist(data.playlist, data.songs || []);
     showNotice("解析完成。");
@@ -95,6 +96,7 @@ downloadButton.addEventListener("click", async () => {
       body: JSON.stringify({
         playlist_link: activePlaylistLink,
         download_dir: downloadDirInput.value.trim(),
+        cookie: cookieInput.value.trim(),
       }),
     });
     activeJobID = job.id;
