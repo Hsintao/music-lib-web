@@ -55,7 +55,7 @@ async function loadConfig() {
   try {
     const cfg = await api("/api/config");
     configText.textContent = `${cfg.addr} · ${cfg.download_dir} · 并发 ${cfg.concurrency}`;
-    downloadDirInput.value = cfg.download_dir || "./download";
+    downloadDirInput.value = cfg.download_dir || "./Downloads";
     disclaimer.textContent = cfg.disclaimer;
   } catch (error) {
     configText.textContent = "配置读取失败";

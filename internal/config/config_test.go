@@ -8,8 +8,8 @@ func TestDefaultsUseUncommonLocalPort(t *testing.T) {
 	if cfg.Addr != "127.0.0.1:51873" {
 		t.Fatalf("Addr = %q, want %q", cfg.Addr, "127.0.0.1:51873")
 	}
-	if cfg.DownloadDir != "./download" {
-		t.Fatalf("DownloadDir = %q, want %q", cfg.DownloadDir, "./download")
+	if cfg.DownloadDir != "./Downloads" {
+		t.Fatalf("DownloadDir = %q, want %q", cfg.DownloadDir, "./Downloads")
 	}
 	if cfg.Concurrency != 3 {
 		t.Fatalf("Concurrency = %d, want 3", cfg.Concurrency)

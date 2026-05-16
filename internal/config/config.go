@@ -14,7 +14,7 @@ type Config struct {
 func Default() Config {
 	return Config{
 		Addr:        "127.0.0.1:51873",
-		DownloadDir: "./download",
+		DownloadDir: "./Downloads",
 		Concurrency: 3,
 	}
 }
