@@ -1,5 +1,6 @@
 download/
 Downloads/
+.music-lib-web-cookie
 /music-lib-web
 *.part
 .DS_Store

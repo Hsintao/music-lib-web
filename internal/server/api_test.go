@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -125,5 +127,46 @@ func TestCookieIsRememberedForLaterTasks(t *testing.T) {
 	}
 	if music.cookies[0] != "MUSIC_U=secret" || music.cookies[1] != "MUSIC_U=secret" {
 		t.Fatalf("cookies = %#v, want remembered cookie reused", music.cookies)
+	}
+}
+
+func TestCookieIsLoadedFromFileForLaterTasks(t *testing.T) {
+	music := &fakeMusicService{}
+	cfg := config.Default()
+	cfg.CookieFile = filepath.Join(t.TempDir(), "cookie")
+	if err := os.WriteFile(cfg.CookieFile, []byte("MUSIC_U=from-file\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	api := New(cfg, music, jobs.NewStore(fakeJobDownloader{}, 1))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/jobs", bytes.NewBufferString(`{"playlist_link":"https://music.163.com/#/playlist?id=43"}`))
+	api.ServeHTTP(httptest.NewRecorder(), req)
+
+	if len(music.cookies) != 1 || music.cookies[0] != "MUSIC_U=from-file" {
+		t.Fatalf("cookies = %#v, want cookie loaded from file", music.cookies)
+	}
+}
+
+func TestCookieIsWrittenToFileWhenProvided(t *testing.T) {
+	cfg := config.Default()
+	cfg.CookieFile = filepath.Join(t.TempDir(), "cookie")
+	api := New(cfg, &fakeMusicService{}, jobs.NewStore(fakeJobDownloader{}, 1))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/jobs", bytes.NewBufferString(`{"playlist_link":"https://music.163.com/#/playlist?id=42","cookie":"MUSIC_U=written"}`))
+	api.ServeHTTP(httptest.NewRecorder(), req)
+
+	data, err := os.ReadFile(cfg.CookieFile)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if string(data) != "MUSIC_U=written\n" {
+		t.Fatalf("cookie file = %q, want written cookie", string(data))
+	}
+	info, err := os.Stat(cfg.CookieFile)
+	if err != nil {
+		t.Fatalf("Stat: %v", err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("cookie file mode = %o, want 0600", info.Mode().Perm())
 	}
 }

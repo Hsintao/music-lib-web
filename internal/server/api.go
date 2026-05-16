@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -41,6 +43,7 @@ func (e badRequest) Error() string {
 
 func New(cfg config.Config, music MusicService, store *jobs.Store) *API {
 	api := &API{cfg: cfg, music: music, jobs: store, mux: http.NewServeMux()}
+	api.defaultCookie = readCookieFile(cfg.CookieFile)
 	api.routes()
 	return api
 }
@@ -136,6 +139,7 @@ func (a *API) effectiveCookie(candidate string) string {
 		a.cookieMu.Lock()
 		a.defaultCookie = candidate
 		a.cookieMu.Unlock()
+		_ = writeCookieFile(a.cfg.CookieFile, candidate)
 		return candidate
 	}
 	a.cookieMu.RLock()
@@ -147,6 +151,32 @@ func (a *API) hasCookie() bool {
 	a.cookieMu.RLock()
 	defer a.cookieMu.RUnlock()
 	return strings.TrimSpace(a.defaultCookie) != ""
+}
+
+func readCookieFile(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return ""
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
+}
+
+func writeCookieFile(path string, cookie string) error {
+	path = strings.TrimSpace(path)
+	cookie = strings.TrimSpace(cookie)
+	if path == "" || cookie == "" {
+		return nil
+	}
+	if dir := filepath.Dir(path); dir != "." && dir != "" {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			return err
+		}
+	}
+	return os.WriteFile(path, []byte(cookie+"\n"), 0o600)
 }
 
 func decodeJSON(r *http.Request, dst any) error {

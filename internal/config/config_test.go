@@ -14,6 +14,9 @@ func TestDefaultsUseUncommonLocalPort(t *testing.T) {
 	if cfg.Concurrency != 3 {
 		t.Fatalf("Concurrency = %d, want 3", cfg.Concurrency)
 	}
+	if cfg.CookieFile != "./.music-lib-web-cookie" {
+		t.Fatalf("CookieFile = %q, want %q", cfg.CookieFile, "./.music-lib-web-cookie")
+	}
 }
 
 func TestParseFlagsOverridesDefaults(t *testing.T) {
@@ -21,6 +24,7 @@ func TestParseFlagsOverridesDefaults(t *testing.T) {
 		"--addr", "127.0.0.1:51991",
 		"--download-dir", "/tmp/music",
 		"--concurrency", "5",
+		"--cookie-file", "/tmp/music-cookie",
 	})
 	if err != nil {
 		t.Fatalf("ParseFlags returned error: %v", err)
@@ -34,5 +38,8 @@ func TestParseFlagsOverridesDefaults(t *testing.T) {
 	}
 	if cfg.Concurrency != 5 {
 		t.Fatalf("Concurrency = %d, want 5", cfg.Concurrency)
+	}
+	if cfg.CookieFile != "/tmp/music-cookie" {
+		t.Fatalf("CookieFile = %q, want override", cfg.CookieFile)
 	}
 }
