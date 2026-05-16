@@ -9,14 +9,16 @@ import (
 )
 
 type fakeDownloader struct {
-	fail       map[string]bool
-	lastRoot   string
-	lastCookie string
+	fail        map[string]bool
+	lastRoot    string
+	lastCookie  string
+	lastQuality string
 }
 
-func (f *fakeDownloader) DownloadSong(ctx context.Context, playlist *model.Playlist, song model.Song, index int, downloadRoot string, cookie string) (string, error) {
+func (f *fakeDownloader) DownloadSong(ctx context.Context, playlist *model.Playlist, song model.Song, index int, downloadRoot string, cookie string, quality string) (string, error) {
 	f.lastRoot = downloadRoot
 	f.lastCookie = cookie
+	f.lastQuality = quality
 	if f.fail[song.ID] {
 		return "", errors.New("network failed")
 	}
@@ -32,7 +34,7 @@ func TestJobCompletesWithErrorsAndRetriesFailures(t *testing.T) {
 		{ID: "2", Name: "B", Artist: "BB"},
 	}
 
-	job := store.Create(playlist, songs, "/tmp/music", "")
+	job := store.Create(playlist, songs, "/tmp/music", "", "mp3")
 	store.Run(context.Background(), job.ID)
 
 	got, ok := store.Get(job.ID)
@@ -63,7 +65,7 @@ func TestJobPassesCustomDownloadRootToDownloader(t *testing.T) {
 	downloader := &fakeDownloader{fail: map[string]bool{}}
 	store := NewStore(downloader, 1)
 	playlist := &model.Playlist{ID: "p1", Name: "列表"}
-	job := store.Create(playlist, []model.Song{{ID: "1", Name: "A", Artist: "AA"}}, "/custom/root", "")
+	job := store.Create(playlist, []model.Song{{ID: "1", Name: "A", Artist: "AA"}}, "/custom/root", "", "mp3")
 
 	store.Run(context.Background(), job.ID)
 
@@ -76,7 +78,7 @@ func TestJobPassesCookieToDownloaderWithoutExposingIt(t *testing.T) {
 	downloader := &fakeDownloader{fail: map[string]bool{}}
 	store := NewStore(downloader, 1)
 	playlist := &model.Playlist{ID: "p1", Name: "列表"}
-	job := store.Create(playlist, []model.Song{{ID: "1", Name: "A", Artist: "AA"}}, "/tmp/music", "MUSIC_U=secret")
+	job := store.Create(playlist, []model.Song{{ID: "1", Name: "A", Artist: "AA"}}, "/tmp/music", "MUSIC_U=secret", "mp3")
 
 	store.Run(context.Background(), job.ID)
 
@@ -86,5 +88,22 @@ func TestJobPassesCookieToDownloaderWithoutExposingIt(t *testing.T) {
 	got, _ := store.Get(job.ID)
 	if got.Cookie != "" {
 		t.Fatal("job snapshot exposed cookie")
+	}
+}
+
+func TestJobPassesQualityToDownloader(t *testing.T) {
+	downloader := &fakeDownloader{fail: map[string]bool{}}
+	store := NewStore(downloader, 1)
+	playlist := &model.Playlist{ID: "p1", Name: "列表"}
+	job := store.Create(playlist, []model.Song{{ID: "1", Name: "A", Artist: "AA"}}, "/tmp/music", "", "lossless")
+
+	store.Run(context.Background(), job.ID)
+
+	if downloader.lastQuality != "lossless" {
+		t.Fatalf("quality = %q, want lossless", downloader.lastQuality)
+	}
+	got, _ := store.Get(job.ID)
+	if got.Quality != "lossless" {
+		t.Fatalf("job quality = %q, want lossless", got.Quality)
 	}
 }

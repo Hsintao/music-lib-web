@@ -91,7 +91,7 @@ func ResolveSongPath(dir string, index int, song model.Song) (string, bool) {
 	return path, false
 }
 
-func (s *Service) DownloadSong(ctx context.Context, playlist *model.Playlist, song model.Song, index int, downloadRoot string, cookie string) (string, error) {
+func (s *Service) DownloadSong(ctx context.Context, playlist *model.Playlist, song model.Song, index int, downloadRoot string, cookie string, quality string) (string, error) {
 	dir := PlaylistDownloadDir(downloadRoot, playlist)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
@@ -99,6 +99,7 @@ func (s *Service) DownloadSong(ctx context.Context, playlist *model.Playlist, so
 	if path, exists := ResolveSongPath(dir, index, song); exists {
 		return path, nil
 	}
+	applyQuality(&song, quality)
 
 	downloadURL, err := libnetease.New(strings.TrimSpace(cookie)).GetDownloadURL(&song)
 	if err != nil {
@@ -154,6 +155,21 @@ func (s *Service) DownloadSong(ctx context.Context, playlist *model.Playlist, so
 		return "", err
 	}
 	return path, nil
+}
+
+func applyQuality(song *model.Song, quality string) {
+	if song.Extra == nil {
+		song.Extra = map[string]string{}
+	}
+	switch quality {
+	case "lossless":
+		song.Extra["netease_level"] = "lossless"
+	default:
+		song.Extra["netease_level"] = "standard"
+		if song.Ext == "" {
+			song.Ext = "mp3"
+		}
+	}
 }
 
 func sanitizeFilename(name string) string {

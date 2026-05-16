@@ -30,7 +30,7 @@ func (f *fakeMusicService) ParsePlaylist(ctx context.Context, link string, cooki
 
 type fakeJobDownloader struct{}
 
-func (fakeJobDownloader) DownloadSong(ctx context.Context, playlist *model.Playlist, song model.Song, index int, downloadRoot string, cookie string) (string, error) {
+func (fakeJobDownloader) DownloadSong(ctx context.Context, playlist *model.Playlist, song model.Song, index int, downloadRoot string, cookie string, quality string) (string, error) {
 	return "/tmp/song.mp3", nil
 }
 
@@ -94,6 +94,28 @@ func TestCreateJobAcceptsCustomDownloadDir(t *testing.T) {
 	}
 	if created.DownloadDir != "/tmp/custom-music" {
 		t.Fatalf("DownloadDir = %q, want custom dir", created.DownloadDir)
+	}
+}
+
+func TestCreateJobAcceptsLosslessQuality(t *testing.T) {
+	api := New(config.Default(), &fakeMusicService{}, jobs.NewStore(fakeJobDownloader{}, 1))
+	body := bytes.NewBufferString(`{"playlist_link":"https://music.163.com/#/playlist?id=42","quality":"lossless"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/jobs", body)
+	rec := httptest.NewRecorder()
+
+	api.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusAccepted, rec.Body.String())
+	}
+	var created struct {
+		Quality string `json:"quality"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("Unmarshal create response: %v", err)
+	}
+	if created.Quality != "lossless" {
+		t.Fatalf("Quality = %q, want lossless", created.Quality)
 	}
 }
 

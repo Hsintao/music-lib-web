@@ -30,7 +30,7 @@ const (
 )
 
 type Downloader interface {
-	DownloadSong(ctx context.Context, playlist *model.Playlist, song model.Song, index int, downloadRoot string, cookie string) (string, error)
+	DownloadSong(ctx context.Context, playlist *model.Playlist, song model.Song, index int, downloadRoot string, cookie string, quality string) (string, error)
 }
 
 type SongResult struct {
@@ -51,6 +51,7 @@ type Job struct {
 	FailureCount int            `json:"failure_count"`
 	CurrentSong  string         `json:"current_song,omitempty"`
 	DownloadDir  string         `json:"download_dir"`
+	Quality      string         `json:"quality"`
 	Results      []SongResult   `json:"results"`
 	CreatedAt    time.Time      `json:"created_at"`
 	UpdatedAt    time.Time      `json:"updated_at"`
@@ -77,8 +78,9 @@ func NewStore(downloader Downloader, concurrency int) *Store {
 	}
 }
 
-func (s *Store) Create(playlist *model.Playlist, songs []model.Song, downloadDir string, cookie string) *Job {
+func (s *Store) Create(playlist *model.Playlist, songs []model.Song, downloadDir string, cookie string, quality string) *Job {
 	now := time.Now()
+	quality = NormalizeQuality(quality)
 	id := fmt.Sprintf("%d", now.UnixNano())
 	results := make([]SongResult, len(songs))
 	for i, song := range songs {
@@ -94,6 +96,7 @@ func (s *Store) Create(playlist *model.Playlist, songs []model.Song, downloadDir
 		Status:      StatusQueued,
 		Total:       len(songs),
 		DownloadDir: downloadDir,
+		Quality:     quality,
 		Results:     results,
 		CreatedAt:   now,
 		UpdatedAt:   now,
@@ -196,9 +199,10 @@ func (s *Store) runOne(ctx context.Context, id string, idx int) {
 	playlist := job.Playlist
 	downloadDir := job.DownloadDir
 	cookie := job.Cookie
+	quality := job.Quality
 	s.mu.Unlock()
 
-	filePath, err := s.downloader.DownloadSong(ctx, &playlist, song, idx+1, downloadDir, cookie)
+	filePath, err := s.downloader.DownloadSong(ctx, &playlist, song, idx+1, downloadDir, cookie, quality)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -212,6 +216,15 @@ func (s *Store) runOne(ctx context.Context, id string, idx int) {
 	}
 	s.recount(job)
 	job.UpdatedAt = time.Now()
+}
+
+func NormalizeQuality(quality string) string {
+	switch quality {
+	case "lossless":
+		return "lossless"
+	default:
+		return "mp3"
+	}
 }
 
 func (s *Store) pendingIndexes(job *Job, retryOnly bool) []int {

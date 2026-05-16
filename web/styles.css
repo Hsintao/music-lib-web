@@ -29,7 +29,8 @@ body {
 
 button,
 input,
-textarea {
+textarea,
+select {
   font: inherit;
 }
 
@@ -105,6 +106,7 @@ h2 {
 }
 
 .path-field,
+.quality-field,
 .cookie-field {
   display: grid;
   grid-template-columns: 88px minmax(0, 1fr);
@@ -118,8 +120,13 @@ h2 {
   align-items: center;
 }
 
+.quality-field {
+  align-items: center;
+}
+
 input,
-textarea {
+textarea,
+select {
   width: 100%;
   border: 1px solid var(--line);
   background: white;
@@ -135,7 +142,8 @@ textarea {
 }
 
 input:focus,
-textarea:focus {
+textarea:focus,
+select:focus {
   border-color: var(--accent);
 }
 
@@ -307,6 +315,7 @@ th {
   .stats,
   .input-row,
   .path-field,
+  .quality-field,
   .cookie-field {
     display: grid;
     grid-template-columns: 1fr;

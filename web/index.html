@@ -27,6 +27,14 @@
           <input id="downloadDirInput" name="download_dir" placeholder="./Downloads" autocomplete="off" />
         </label>
 
+        <label class="quality-field">
+          <span>音质格式</span>
+          <select id="qualitySelect" name="quality">
+            <option value="mp3">MP3</option>
+            <option value="lossless">无损</option>
+          </select>
+        </label>
+
         <label class="cookie-field">
           <span>网易云 Cookie</span>
           <textarea id="cookieInput" name="cookie" placeholder="可选。填写 MUSIC_U=... 等 Cookie 后，会保存到本地 Cookie 文件，后续任务和服务重启后都会复用。"></textarea>
@@ -84,7 +92,7 @@
         <h2>下载规则</h2>
         <p>每个歌单会保存到下载根目录下与歌单名相同的新目录。同名目录存在时会复用，已存在的同名音频不会重复下载。文件名为“歌曲名 - 歌手”。</p>
         <h2>使用提示</h2>
-        <p>公开歌单可以不填 Cookie。填写网易云 Cookie 后，后端会保存到本地 Cookie 文件，后续任务和服务重启后都会复用；Cookie 不会出现在 API 响应里。</p>
+        <p>公开歌单可以不填 Cookie。MP3 会请求标准音质；无损会请求 FLAC 等无损资源，通常需要账号权限。填写网易云 Cookie 后会保存到本地 Cookie 文件并在重启后复用；Cookie 不会出现在 API 响应里。</p>
         <h2>声明</h2>
         <p id="disclaimer">本工具仅用于学习和技术研究。请遵守法律法规，不要商用。</p>
       </aside>

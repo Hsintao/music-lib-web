@@ -1,6 +1,7 @@
 const form = document.querySelector("#playlistForm");
 const input = document.querySelector("#playlistInput");
 const downloadDirInput = document.querySelector("#downloadDirInput");
+const qualitySelect = document.querySelector("#qualitySelect");
 const cookieInput = document.querySelector("#cookieInput");
 const notice = document.querySelector("#notice");
 const configText = document.querySelector("#configText");
@@ -97,6 +98,7 @@ downloadButton.addEventListener("click", async () => {
       body: JSON.stringify({
         playlist_link: activePlaylistLink,
         download_dir: downloadDirInput.value.trim(),
+        quality: qualitySelect.value,
         cookie: cookieInput.value.trim(),
       }),
     });

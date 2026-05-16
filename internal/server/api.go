@@ -93,6 +93,7 @@ func (a *API) handleCreateJob(w http.ResponseWriter, r *http.Request) {
 		PlaylistLink string `json:"playlist_link"`
 		DownloadDir  string `json:"download_dir"`
 		Cookie       string `json:"cookie"`
+		Quality      string `json:"quality"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, err)
@@ -108,7 +109,7 @@ func (a *API) handleCreateJob(w http.ResponseWriter, r *http.Request) {
 	if downloadDir == "" {
 		downloadDir = a.cfg.DownloadDir
 	}
-	job := a.jobs.Create(playlist, songs, downloadDir, cookie)
+	job := a.jobs.Create(playlist, songs, downloadDir, cookie, jobs.NormalizeQuality(req.Quality))
 	go a.jobs.Run(context.Background(), job.ID)
 	writeJSON(w, http.StatusAccepted, job)
 }
