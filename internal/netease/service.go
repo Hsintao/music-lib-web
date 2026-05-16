@@ -16,6 +16,7 @@ import (
 	"github.com/guohuiyuan/music-lib/model"
 	libnetease "github.com/guohuiyuan/music-lib/netease"
 	"github.com/guohuiyuan/music-lib/utils"
+	"music-lib-web/internal/metadata"
 )
 
 var numericID = regexp.MustCompile(`^\d+$`)
@@ -154,7 +155,71 @@ func (s *Service) DownloadSong(ctx context.Context, playlist *model.Playlist, so
 		_ = os.Remove(tmp)
 		return "", err
 	}
+	_ = s.embedMetadata(ctx, path, song, index, cookie)
 	return path, nil
+}
+
+func (s *Service) embedMetadata(ctx context.Context, path string, song model.Song, index int, cookie string) error {
+	client := libnetease.New(strings.TrimSpace(cookie))
+	lyrics, _ := client.GetLyrics(&song)
+	coverData, coverMIME, _ := s.fetchCover(ctx, song.Cover)
+	return metadata.Embed(path, metadata.Tags{
+		Title:      song.Name,
+		Artist:     song.Artist,
+		Album:      song.Album,
+		Lyrics:     lyrics,
+		CoverData:  coverData,
+		CoverMIME:  coverMIME,
+		TrackIndex: index,
+	})
+}
+
+func (s *Service) fetchCover(ctx context.Context, coverURL string) ([]byte, string, error) {
+	coverURL = strings.TrimSpace(coverURL)
+	if coverURL == "" {
+		return nil, "", nil
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, coverURL, nil)
+	if err != nil {
+		return nil, "", err
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0")
+	client := s.Client
+	if client == nil {
+		client = http.DefaultClient
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, "", fmt.Errorf("cover HTTP status %d", resp.StatusCode)
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 15*1024*1024))
+	if err != nil {
+		return nil, "", err
+	}
+	mime := normalizeImageMIME(resp.Header.Get("Content-Type"), data)
+	if mime == "" {
+		return nil, "", fmt.Errorf("unsupported cover content type %q", resp.Header.Get("Content-Type"))
+	}
+	return data, mime, nil
+}
+
+func normalizeImageMIME(contentType string, data []byte) string {
+	contentType = strings.ToLower(strings.TrimSpace(strings.Split(contentType, ";")[0]))
+	switch contentType {
+	case "image/jpeg", "image/png":
+		return contentType
+	}
+	detected := http.DetectContentType(data)
+	switch detected {
+	case "image/jpeg", "image/png":
+		return detected
+	default:
+		return ""
+	}
 }
 
 func applyQuality(song *model.Song, quality string) {
