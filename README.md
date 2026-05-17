@@ -46,6 +46,114 @@ go build -o music-lib-web ./cmd/music-lib-web
 ./music-lib-web
 ```
 
+## Docker 部署
+
+项目已发布 Docker Hub 镜像：
+
+```text
+xintao0/music-lib-web:latest
+```
+
+镜像支持：
+
+```text
+linux/amd64
+linux/arm64
+```
+
+### Docker Compose
+
+如果是在本仓库目录中运行，可以直接使用自带的 `docker-compose.yml`：
+
+```bash
+docker compose up -d --build
+```
+
+启动后访问：
+
+```text
+http://127.0.0.1:51873
+```
+
+Compose 默认会把容器内 `/data` 挂载到项目目录下的 `./docker-data`：
+
+```text
+docker-data/
+  Downloads/                 下载文件
+  .music-lib-web-cookie      持久化 Cookie
+```
+
+停止服务：
+
+```bash
+docker compose down
+```
+
+查看日志：
+
+```bash
+docker compose logs -f
+```
+
+如果不想本地构建，而是直接使用 Docker Hub 镜像，可以新建一个 `compose.yml`：
+
+```yaml
+services:
+  music-lib-web:
+    image: xintao0/music-lib-web:latest
+    container_name: music-lib-web
+    restart: unless-stopped
+    ports:
+      - "51873:51873"
+    volumes:
+      - ./docker-data:/data
+```
+
+然后启动：
+
+```bash
+docker compose up -d
+```
+
+### Docker Run
+
+不使用 Compose 时，可以直接运行 Docker Hub 镜像：
+
+```bash
+docker run -d \
+  --name music-lib-web \
+  --restart unless-stopped \
+  -p 51873:51873 \
+  -v "$PWD/docker-data:/data" \
+  xintao0/music-lib-web:latest
+```
+
+停止并删除容器：
+
+```bash
+docker stop music-lib-web
+docker rm music-lib-web
+```
+
+也可以本地构建镜像后运行：
+
+```bash
+docker build -t music-lib-web:local .
+docker run --rm \
+  -p 51873:51873 \
+  -v "$PWD/docker-data:/data" \
+  music-lib-web:local
+```
+
+容器内默认参数：
+
+```text
+--addr 0.0.0.0:51873
+--download-dir /data/Downloads
+--cookie-file /data/.music-lib-web-cookie
+--concurrency 3
+```
+
 ## 启动参数
 
 ```bash

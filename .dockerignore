@@ -1,0 +1,10 @@
+.git
+.DS_Store
+Downloads
+docker-data
+download
+.music-lib-web-cookie
+*.part
+music-lib-web
+tmp
+dist

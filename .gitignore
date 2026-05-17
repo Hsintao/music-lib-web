@@ -1,5 +1,6 @@
 download/
 Downloads/
+docker-data/
 .music-lib-web-cookie
 /music-lib-web
 *.part

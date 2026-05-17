@@ -1,0 +1,20 @@
+services:
+  music-lib-web:
+    build:
+      context: .
+    image: music-lib-web:local
+    container_name: music-lib-web
+    restart: unless-stopped
+    ports:
+      - "51873:51873"
+    volumes:
+      - ./docker-data:/data
+    command:
+      - --addr
+      - 0.0.0.0:51873
+      - --download-dir
+      - /data/Downloads
+      - --cookie-file
+      - /data/.music-lib-web-cookie
+      - --concurrency
+      - "3"
