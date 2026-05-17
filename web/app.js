@@ -21,10 +21,12 @@ const progressBar = document.querySelector("#progressBar");
 const resultList = document.querySelector("#resultList");
 const retryButton = document.querySelector("#retryButton");
 const cancelButton = document.querySelector("#cancelButton");
+const themeToggle = document.querySelector("#themeToggle");
 
 let activePlaylistLink = "";
 let activeJobID = "";
 let pollTimer = 0;
+const themeStorageKey = "music-lib-theme";
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -42,6 +44,19 @@ function showNotice(message, isError = false) {
   notice.textContent = message;
   notice.classList.toggle("error", isError);
 }
+
+function applyTheme(theme) {
+  const nextTheme = theme === "dark" ? "dark" : "light";
+  document.documentElement.dataset.theme = nextTheme;
+  localStorage.setItem(themeStorageKey, nextTheme);
+  themeToggle.textContent = nextTheme === "dark" ? "白天" : "夜间";
+  themeToggle.setAttribute("aria-pressed", String(nextTheme === "dark"));
+}
+
+themeToggle.addEventListener("click", () => {
+  const currentTheme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+  applyTheme(currentTheme === "dark" ? "light" : "dark");
+});
 
 function escapeText(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -210,4 +225,5 @@ function statusLabel(status) {
   }[status] || status;
 }
 
+applyTheme(localStorage.getItem(themeStorageKey) || document.documentElement.dataset.theme);
 loadConfig();

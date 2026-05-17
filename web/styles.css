@@ -4,11 +4,48 @@
   --muted: #6f675d;
   --line: #d8d0c4;
   --panel: #fffaf1;
+  --panel-alpha: rgba(255, 250, 241, 0.94);
+  --field: #ffffff;
+  --table: #ffffff;
+  --table-head: #fbf5ea;
+  --table-line: #eee6da;
+  --cover-bg: #e3ded5;
+  --progress-track: #eadfce;
+  --secondary: #4a4138;
+  --secondary-hover: #2d2822;
   --accent: #b4292e;
   --accent-dark: #891d23;
   --green: #226b4a;
   --amber: #9a6300;
   --shadow: 0 18px 60px rgba(44, 35, 24, 0.14);
+  --grid-x: rgba(180, 41, 46, 0.06);
+  --grid-y: rgba(180, 41, 46, 0.05);
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --bg: #141310;
+  --ink: #f0e8d8;
+  --muted: #b0a796;
+  --line: #3b352c;
+  --panel: #1d1a16;
+  --panel-alpha: rgba(29, 26, 22, 0.94);
+  --field: #12110f;
+  --table: #171512;
+  --table-head: #211e19;
+  --table-line: #302a23;
+  --cover-bg: #26221d;
+  --progress-track: #302a23;
+  --secondary: #4f453a;
+  --secondary-hover: #66594b;
+  --accent: #e05a60;
+  --accent-dark: #ff7b80;
+  --green: #5dbd8a;
+  --amber: #e5af4d;
+  --shadow: 0 18px 60px rgba(0, 0, 0, 0.34);
+  --grid-x: rgba(224, 90, 96, 0.09);
+  --grid-y: rgba(224, 90, 96, 0.07);
+  color-scheme: dark;
 }
 
 * {
@@ -20,11 +57,12 @@ body {
   min-height: 100vh;
   color: var(--ink);
   background:
-    linear-gradient(90deg, rgba(180, 41, 46, 0.06) 1px, transparent 1px),
-    linear-gradient(180deg, rgba(180, 41, 46, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-x) 1px, transparent 1px),
+    linear-gradient(180deg, var(--grid-y) 1px, transparent 1px),
     var(--bg);
   background-size: 28px 28px;
   font-family: ui-serif, "Songti SC", "Noto Serif CJK SC", Georgia, serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 button,
@@ -47,7 +85,7 @@ select {
 .playlist-panel,
 .job-panel {
   border: 1px solid var(--line);
-  background: rgba(255, 250, 241, 0.94);
+  background: var(--panel-alpha);
   box-shadow: var(--shadow);
 }
 
@@ -64,6 +102,26 @@ select {
   gap: 16px;
 }
 
+.topbar-actions {
+  display: grid;
+  justify-items: end;
+  gap: 10px;
+  min-width: min(360px, 42vw);
+}
+
+.theme-toggle {
+  width: 68px;
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  background: var(--field);
+  color: var(--ink);
+}
+
+.theme-toggle:hover {
+  background: var(--table-head);
+}
+
 .job-header {
   display: flex;
   align-items: center;
@@ -77,11 +135,11 @@ select {
 }
 
 #cancelButton {
-  background: #4a4138;
+  background: var(--secondary);
 }
 
 #cancelButton:hover {
-  background: #2d2822;
+  background: var(--secondary-hover);
 }
 
 .eyebrow {
@@ -148,7 +206,8 @@ textarea,
 select {
   width: 100%;
   border: 1px solid var(--line);
-  background: white;
+  background: var(--field);
+  color: var(--ink);
   padding: 14px 16px;
   outline: none;
 }
@@ -208,7 +267,7 @@ button:disabled {
   height: 180px;
   object-fit: cover;
   border: 1px solid var(--line);
-  background: #e3ded5;
+  background: var(--cover-bg);
 }
 
 .song-table-wrap {
@@ -220,13 +279,13 @@ button:disabled {
 table {
   width: 100%;
   border-collapse: collapse;
-  background: white;
+  background: var(--table);
 }
 
 th,
 td {
   padding: 10px 12px;
-  border-bottom: 1px solid #eee6da;
+  border-bottom: 1px solid var(--table-line);
   text-align: left;
   vertical-align: top;
 }
@@ -234,7 +293,7 @@ td {
 th {
   position: sticky;
   top: 0;
-  background: #fbf5ea;
+  background: var(--table-head);
   color: var(--muted);
   font-size: 13px;
 }
@@ -247,7 +306,7 @@ th {
 .progress {
   height: 12px;
   margin: 12px 0;
-  background: #eadfce;
+  background: var(--progress-track);
   overflow: hidden;
 }
 
@@ -272,7 +331,7 @@ th {
   gap: 12px;
   padding: 10px 12px;
   border: 1px solid var(--line);
-  background: white;
+  background: var(--field);
 }
 
 .status-success {
@@ -338,5 +397,10 @@ th {
   .cookie-field {
     display: grid;
     grid-template-columns: 1fr;
+  }
+
+  .topbar-actions {
+    justify-items: start;
+    min-width: 0;
   }
 }

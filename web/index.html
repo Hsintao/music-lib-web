@@ -3,8 +3,12 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
     <title>网易云歌单下载</title>
     <link rel="stylesheet" href="/styles.css" />
+    <script>
+      document.documentElement.dataset.theme = localStorage.getItem("music-lib-theme") || "light";
+    </script>
   </head>
   <body>
     <main class="shell">
@@ -14,7 +18,10 @@
             <p class="eyebrow">music-lib web</p>
             <h1>网易云歌单下载</h1>
           </div>
-          <div class="config" id="configText">读取配置中...</div>
+          <div class="topbar-actions">
+            <button class="theme-toggle" id="themeToggle" type="button" aria-label="切换暗黑和白天主题">夜间</button>
+            <div class="config" id="configText">读取配置中...</div>
+          </div>
         </header>
 
         <form class="input-row" id="playlistForm">
