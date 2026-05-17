@@ -20,6 +20,7 @@ const themeToggle = document.querySelector("#themeToggle");
 let activePlaylistLink = "";
 let pollTimer = 0;
 const themeStorageKey = "music-lib-theme";
+const resultScrollByJob = new Map();
 
 function readStoredTheme() {
   try {
@@ -202,10 +203,12 @@ async function fetchJobs() {
 }
 
 function renderJobs(jobs) {
+  rememberResultScrollPositions();
   if (!jobs.length) {
     jobPanel.classList.add("hidden");
     jobList.innerHTML = "";
     jobSummary.textContent = "暂无任务";
+    resultScrollByJob.clear();
     return;
   }
   jobPanel.classList.remove("hidden");
@@ -213,6 +216,7 @@ function renderJobs(jobs) {
   const failed = jobs.filter((job) => (job.failure_count || 0) > 0).length;
   jobSummary.textContent = `${jobs.length} 个任务 · 运行中 ${active} · 有失败 ${failed}`;
   jobList.innerHTML = jobs.map(renderJobCard).join("");
+  restoreResultScrollPositions(jobs);
 }
 
 function renderJobCard(job) {
@@ -255,9 +259,30 @@ function renderJobCard(job) {
         <span>${job.current_song ? `当前：${escapeText(job.current_song)}` : "后台下载"}</span>
         <span>${escapeText(job.download_dir || "")}</span>
       </div>
-      <div class="result-list">${results}</div>
+      <div class="result-list" data-job-id="${escapeText(job.id)}">${results}</div>
     </article>
   `;
+}
+
+function rememberResultScrollPositions() {
+  document.querySelectorAll(".result-list[data-job-id]").forEach((list) => {
+    resultScrollByJob.set(list.dataset.jobId, list.scrollTop);
+  });
+}
+
+function restoreResultScrollPositions(jobs) {
+  const liveIDs = new Set(jobs.map((job) => String(job.id)));
+  for (const id of resultScrollByJob.keys()) {
+    if (!liveIDs.has(id)) {
+      resultScrollByJob.delete(id);
+    }
+  }
+  document.querySelectorAll(".result-list[data-job-id]").forEach((list) => {
+    const scrollTop = resultScrollByJob.get(list.dataset.jobId);
+    if (scrollTop !== undefined) {
+      list.scrollTop = scrollTop;
+    }
+  });
 }
 
 function isActiveJob(status) {
