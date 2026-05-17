@@ -31,7 +31,12 @@ const (
 )
 
 type Downloader interface {
-	DownloadSong(ctx context.Context, playlist *model.Playlist, song model.Song, index int, downloadRoot string, cookie string, quality string) (string, error)
+	DownloadSong(ctx context.Context, playlist *model.Playlist, song model.Song, index int, downloadRoot string, cookie string, quality string) (DownloadResult, error)
+}
+
+type DownloadResult struct {
+	FilePath string
+	Source   string
 }
 
 type SongResult struct {
@@ -40,6 +45,7 @@ type SongResult struct {
 	Artist   string     `json:"artist"`
 	Status   SongStatus `json:"status"`
 	FilePath string     `json:"file_path,omitempty"`
+	Source   string     `json:"source,omitempty"`
 	Error    string     `json:"error,omitempty"`
 }
 
@@ -175,6 +181,7 @@ func (s *Store) run(ctx context.Context, id string, retryOnly bool) {
 		job.Results[idx].Status = SongQueued
 		job.Results[idx].Error = ""
 		job.Results[idx].FilePath = ""
+		job.Results[idx].Source = ""
 	}
 	s.recount(job)
 	s.mu.Unlock()
@@ -225,7 +232,7 @@ func (s *Store) runOne(ctx context.Context, id string, idx int) {
 	quality := job.Quality
 	s.mu.Unlock()
 
-	filePath, err := s.downloader.DownloadSong(ctx, &playlist, song, idx+1, downloadDir, cookie, quality)
+	download, err := s.downloader.DownloadSong(ctx, &playlist, song, idx+1, downloadDir, cookie, quality)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -233,9 +240,11 @@ func (s *Store) runOne(ctx context.Context, id string, idx int) {
 	if err != nil {
 		job.Results[idx].Status = SongFailed
 		job.Results[idx].Error = err.Error()
+		job.Results[idx].Source = ""
 	} else {
 		job.Results[idx].Status = SongSuccess
-		job.Results[idx].FilePath = filePath
+		job.Results[idx].FilePath = download.FilePath
+		job.Results[idx].Source = download.Source
 	}
 	s.recount(job)
 	job.UpdatedAt = time.Now()

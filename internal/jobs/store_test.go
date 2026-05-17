@@ -18,7 +18,7 @@ type fakeDownloader struct {
 	started     chan struct{}
 }
 
-func (f *fakeDownloader) DownloadSong(ctx context.Context, playlist *model.Playlist, song model.Song, index int, downloadRoot string, cookie string, quality string) (string, error) {
+func (f *fakeDownloader) DownloadSong(ctx context.Context, playlist *model.Playlist, song model.Song, index int, downloadRoot string, cookie string, quality string) (DownloadResult, error) {
 	f.lastRoot = downloadRoot
 	f.lastCookie = cookie
 	f.lastQuality = quality
@@ -31,14 +31,14 @@ func (f *fakeDownloader) DownloadSong(ctx context.Context, playlist *model.Playl
 	if f.block != nil {
 		select {
 		case <-ctx.Done():
-			return "", ctx.Err()
+			return DownloadResult{}, ctx.Err()
 		case <-f.block:
 		}
 	}
 	if f.fail[song.ID] {
-		return "", errors.New("network failed")
+		return DownloadResult{}, errors.New("network failed")
 	}
-	return "/tmp/" + song.ID + ".mp3", nil
+	return DownloadResult{FilePath: "/tmp/" + song.ID + ".mp3", Source: "netease"}, nil
 }
 
 func TestJobCompletesWithErrorsAndRetriesFailures(t *testing.T) {

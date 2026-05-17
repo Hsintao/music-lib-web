@@ -30,8 +30,8 @@ func (f *fakeMusicService) ParsePlaylist(ctx context.Context, link string, cooki
 
 type fakeJobDownloader struct{}
 
-func (fakeJobDownloader) DownloadSong(ctx context.Context, playlist *model.Playlist, song model.Song, index int, downloadRoot string, cookie string, quality string) (string, error) {
-	return "/tmp/song.mp3", nil
+func (fakeJobDownloader) DownloadSong(ctx context.Context, playlist *model.Playlist, song model.Song, index int, downloadRoot string, cookie string, quality string) (jobs.DownloadResult, error) {
+	return jobs.DownloadResult{FilePath: "/tmp/song.mp3", Source: "netease"}, nil
 }
 
 func TestParsePlaylistRejectsEmptyLink(t *testing.T) {

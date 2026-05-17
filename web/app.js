@@ -194,7 +194,7 @@ function renderJob(job) {
       <strong class="status-${escapeText(result.status)}">${statusLabel(result.status)}</strong>
       <div>
         <div>${escapeText(result.name)} - ${escapeText(result.artist)}</div>
-        <small>${escapeText(result.error || result.file_path || "")}</small>
+        <small>${escapeText(result.error || result.file_path || "")}${result.source ? ` · 音源: ${escapeText(result.source)}` : ""}</small>
       </div>
     </div>
   `).join("");

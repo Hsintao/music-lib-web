@@ -13,21 +13,42 @@ import (
 	"strings"
 	"time"
 
+	"github.com/guohuiyuan/music-lib/bilibili"
+	"github.com/guohuiyuan/music-lib/fivesing"
+	"github.com/guohuiyuan/music-lib/jamendo"
+	"github.com/guohuiyuan/music-lib/joox"
+	"github.com/guohuiyuan/music-lib/kugou"
+	"github.com/guohuiyuan/music-lib/kuwo"
+	"github.com/guohuiyuan/music-lib/migu"
 	"github.com/guohuiyuan/music-lib/model"
 	libnetease "github.com/guohuiyuan/music-lib/netease"
+	"github.com/guohuiyuan/music-lib/qianqian"
+	"github.com/guohuiyuan/music-lib/qq"
+	"github.com/guohuiyuan/music-lib/soda"
 	"github.com/guohuiyuan/music-lib/utils"
+	"music-lib-web/internal/jobs"
 	"music-lib-web/internal/metadata"
 )
 
 var numericID = regexp.MustCompile(`^\d+$`)
 
 type Service struct {
-	Client *http.Client
+	Client             *http.Client
+	fallbacks          []fallbackSource
+	neteaseURLResolver func(cookie string, song *model.Song) (string, error)
+}
+
+type fallbackSource struct {
+	Name           string
+	Search         func(keyword string) ([]model.Song, error)
+	GetDownloadURL func(song *model.Song) (string, error)
 }
 
 func New() *Service {
 	return &Service{
-		Client: &http.Client{Timeout: 2 * time.Minute},
+		Client:             &http.Client{Timeout: 2 * time.Minute},
+		fallbacks:          defaultFallbackSources(),
+		neteaseURLResolver: resolveNeteaseURL,
 	}
 }
 
@@ -92,35 +113,93 @@ func ResolveSongPath(dir string, index int, song model.Song) (string, bool) {
 	return path, false
 }
 
-func (s *Service) DownloadSong(ctx context.Context, playlist *model.Playlist, song model.Song, index int, downloadRoot string, cookie string, quality string) (string, error) {
+func (s *Service) DownloadSong(ctx context.Context, playlist *model.Playlist, song model.Song, index int, downloadRoot string, cookie string, quality string) (jobs.DownloadResult, error) {
 	dir := PlaylistDownloadDir(downloadRoot, playlist)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", err
+		return jobs.DownloadResult{}, err
 	}
 	if path, exists := ResolveSongPath(dir, index, song); exists {
-		return path, nil
+		return jobs.DownloadResult{FilePath: path, Source: "cache"}, nil
 	}
 	applyQuality(&song, quality)
 
-	downloadURL, err := libnetease.New(strings.TrimSpace(cookie)).GetDownloadURL(&song)
+	downloadURL, chosenSong, source, fromFallback, err := s.resolveDownloadURL(ctx, song, cookie, quality)
 	if err != nil {
-		return "", friendlyDownloadError(err)
+		return jobs.DownloadResult{}, err
 	}
-	if strings.TrimSpace(downloadURL) == "" {
-		return "", errors.New("未获取到下载地址，可能是 VIP 或版权限制")
-	}
-
+	song = chosenSong
 	if song.Ext == "" {
 		song.Ext = extFromURL(downloadURL)
 	}
+
 	path, exists := ResolveSongPath(dir, index, song)
 	if exists {
-		return path, nil
+		return jobs.DownloadResult{FilePath: path, Source: "cache"}, nil
 	}
 
+	if err := s.downloadToPath(ctx, downloadURL, path); err != nil {
+		if fromFallback {
+			return jobs.DownloadResult{}, err
+		}
+		// Primary source failed at transfer stage, attempt cross-source URL fallback.
+		altURL, altSong, altSource, _, altErr := s.resolveFallbackURL(ctx, song)
+		if altErr != nil {
+			return jobs.DownloadResult{}, err
+		}
+		song = altSong
+		source = altSource
+		if song.Ext == "" {
+			song.Ext = extFromURL(altURL)
+		}
+		path = filepath.Join(dir, SongFilename(index, song))
+		if _, exists := ResolveSongPath(dir, index, song); exists {
+			return jobs.DownloadResult{FilePath: path, Source: "cache"}, nil
+		}
+		if err := s.downloadToPath(ctx, altURL, path); err != nil {
+			return jobs.DownloadResult{}, err
+		}
+	}
+
+	_ = s.embedMetadata(ctx, path, song, index, cookie)
+	return jobs.DownloadResult{FilePath: path, Source: source}, nil
+}
+
+func (s *Service) resolveDownloadURL(ctx context.Context, song model.Song, cookie string, quality string) (string, model.Song, string, bool, error) {
+	url, err := s.neteaseURLResolver(strings.TrimSpace(cookie), &song)
+	if err == nil && strings.TrimSpace(url) != "" {
+		return url, song, "netease", false, nil
+	}
+	return s.resolveFallbackURL(ctx, song)
+}
+
+func (s *Service) resolveFallbackURL(ctx context.Context, song model.Song) (string, model.Song, string, bool, error) {
+	keyword := strings.TrimSpace(song.Name + " " + song.Artist)
+	if keyword == "" {
+		return "", song, "", false, errors.New("未获取到下载地址，可能是 VIP 或版权限制")
+	}
+	for _, src := range s.fallbacks {
+		candidates, err := callSearchWithTimeout(ctx, src.Search, keyword, 8*time.Second)
+		if err != nil || len(candidates) == 0 {
+			continue
+		}
+		for _, candidate := range rankCandidates(song, candidates) {
+			url, urlErr := callURLWithTimeout(ctx, src.GetDownloadURL, &candidate, 8*time.Second)
+			if urlErr != nil || strings.TrimSpace(url) == "" {
+				continue
+			}
+			if candidate.Ext == "" {
+				candidate.Ext = extFromURL(url)
+			}
+			return url, candidate, src.Name, true, nil
+		}
+	}
+	return "", song, "", false, errors.New("未获取到下载地址，且自动换源失败")
+}
+
+func (s *Service) downloadToPath(ctx context.Context, downloadURL string, path string) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, downloadURL, nil)
 	if err != nil {
-		return "", err
+		return err
 	}
 	req.Header.Set("User-Agent", "Mozilla/5.0")
 	client := s.Client
@@ -129,34 +208,33 @@ func (s *Service) DownloadSong(ctx context.Context, playlist *model.Playlist, so
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", err
+		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", fmt.Errorf("下载 HTTP 状态异常: %d", resp.StatusCode)
+		return fmt.Errorf("下载 HTTP 状态异常: %d", resp.StatusCode)
 	}
 
 	tmp := path + ".part"
 	out, err := os.Create(tmp)
 	if err != nil {
-		return "", err
+		return err
 	}
 	_, copyErr := io.Copy(out, resp.Body)
 	closeErr := out.Close()
 	if copyErr != nil {
 		_ = os.Remove(tmp)
-		return "", copyErr
+		return copyErr
 	}
 	if closeErr != nil {
 		_ = os.Remove(tmp)
-		return "", closeErr
+		return closeErr
 	}
 	if err := os.Rename(tmp, path); err != nil {
 		_ = os.Remove(tmp)
-		return "", err
+		return err
 	}
-	_ = s.embedMetadata(ctx, path, song, index, cookie)
-	return path, nil
+	return nil
 }
 
 func (s *Service) embedMetadata(ctx context.Context, path string, song model.Song, index int, cookie string) error {
@@ -220,6 +298,93 @@ func normalizeImageMIME(contentType string, data []byte) string {
 	default:
 		return ""
 	}
+}
+
+func resolveNeteaseURL(cookie string, song *model.Song) (string, error) {
+	return libnetease.New(strings.TrimSpace(cookie)).GetDownloadURL(song)
+}
+
+func defaultFallbackSources() []fallbackSource {
+	return []fallbackSource{
+		{Name: "qq", Search: qq.Search, GetDownloadURL: qq.GetDownloadURL},
+		{Name: "kugou", Search: kugou.Search, GetDownloadURL: kugou.GetDownloadURL},
+		{Name: "kuwo", Search: kuwo.Search, GetDownloadURL: kuwo.GetDownloadURL},
+		{Name: "migu", Search: migu.Search, GetDownloadURL: migu.GetDownloadURL},
+		{Name: "qianqian", Search: qianqian.Search, GetDownloadURL: qianqian.GetDownloadURL},
+		{Name: "soda", Search: soda.Search, GetDownloadURL: soda.GetDownloadURL},
+		{Name: "jamendo", Search: jamendo.Search, GetDownloadURL: jamendo.GetDownloadURL},
+		{Name: "joox", Search: joox.Search, GetDownloadURL: joox.GetDownloadURL},
+		{Name: "bilibili", Search: bilibili.Search, GetDownloadURL: bilibili.GetDownloadURL},
+		{Name: "fivesing", Search: fivesing.Search, GetDownloadURL: fivesing.GetDownloadURL},
+	}
+}
+
+func callSearchWithTimeout(ctx context.Context, fn func(string) ([]model.Song, error), keyword string, timeout time.Duration) ([]model.Song, error) {
+	type result struct {
+		songs []model.Song
+		err   error
+	}
+	ch := make(chan result, 1)
+	go func() {
+		songs, err := fn(keyword)
+		ch <- result{songs: songs, err: err}
+	}()
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-timer.C:
+		return nil, context.DeadlineExceeded
+	case res := <-ch:
+		return res.songs, res.err
+	}
+}
+
+func callURLWithTimeout(ctx context.Context, fn func(*model.Song) (string, error), song *model.Song, timeout time.Duration) (string, error) {
+	type result struct {
+		url string
+		err error
+	}
+	ch := make(chan result, 1)
+	cp := *song
+	go func() {
+		url, err := fn(&cp)
+		ch <- result{url: url, err: err}
+	}()
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	case <-timer.C:
+		return "", context.DeadlineExceeded
+	case res := <-ch:
+		return res.url, res.err
+	}
+}
+
+func rankCandidates(target model.Song, candidates []model.Song) []model.Song {
+	best := make([]model.Song, 0, len(candidates))
+	rest := make([]model.Song, 0, len(candidates))
+	targetName := normalizeToken(target.Name)
+	targetArtist := normalizeToken(target.Artist)
+	for _, song := range candidates {
+		name := normalizeToken(song.Name)
+		artist := normalizeToken(song.Artist)
+		if name == targetName && (targetArtist == "" || strings.Contains(artist, targetArtist) || strings.Contains(targetArtist, artist)) {
+			best = append(best, song)
+		} else {
+			rest = append(rest, song)
+		}
+	}
+	return append(best, rest...)
+}
+
+func normalizeToken(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	replacer := strings.NewReplacer(" ", "", "、", "", ",", "", "/", "", "-", "", "_", "", "·", "", ".", "", "(", "", ")", "")
+	return replacer.Replace(value)
 }
 
 func applyQuality(song *model.Song, quality string) {
