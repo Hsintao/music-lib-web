@@ -97,6 +97,7 @@ docker compose logs -f
 
 如果不想本地构建，而是直接使用 Docker Hub 镜像，可以新建一个 `compose.yml`：
 
+默认下载路径为容器里的`/data/Downloads`
 ```yaml
 services:
   music-lib-web:
@@ -107,6 +108,7 @@ services:
       - "51873:51873"
     volumes:
       - ./docker-data:/data
+      # -./你的路径:/data/Downloads
 ```
 
 然后启动：
