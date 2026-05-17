@@ -75,6 +75,31 @@ func TestCreateJobAndGetStatus(t *testing.T) {
 	}
 }
 
+func TestListJobsReturnsCreatedJobs(t *testing.T) {
+	api := New(config.Default(), &fakeMusicService{}, jobs.NewStore(fakeJobDownloader{}, 1))
+	first := httptest.NewRequest(http.MethodPost, "/api/jobs", bytes.NewBufferString(`{"playlist_link":"https://music.163.com/#/playlist?id=42"}`))
+	api.ServeHTTP(httptest.NewRecorder(), first)
+	second := httptest.NewRequest(http.MethodPost, "/api/jobs", bytes.NewBufferString(`{"playlist_link":"https://music.163.com/#/playlist?id=43"}`))
+	api.ServeHTTP(httptest.NewRecorder(), second)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/jobs", nil)
+	rec := httptest.NewRecorder()
+	api.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	var got struct {
+		Jobs []jobs.Job `json:"jobs"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("Unmarshal list response: %v", err)
+	}
+	if len(got.Jobs) != 2 {
+		t.Fatalf("jobs length = %d, want 2", len(got.Jobs))
+	}
+}
+
 func TestCreateJobAcceptsCustomDownloadDir(t *testing.T) {
 	api := New(config.Default(), &fakeMusicService{}, jobs.NewStore(fakeJobDownloader{}, 1))
 	body := bytes.NewBufferString(`{"playlist_link":"https://music.163.com/#/playlist?id=42","download_dir":"/tmp/custom-music"}`)

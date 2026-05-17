@@ -13,20 +13,29 @@ const playlistMeta = document.querySelector("#playlistMeta");
 const songRows = document.querySelector("#songRows");
 const downloadButton = document.querySelector("#downloadButton");
 const jobPanel = document.querySelector("#jobPanel");
-const jobTitle = document.querySelector("#jobTitle");
-const jobStatus = document.querySelector("#jobStatus");
-const jobCounts = document.querySelector("#jobCounts");
-const currentSong = document.querySelector("#currentSong");
-const progressBar = document.querySelector("#progressBar");
-const resultList = document.querySelector("#resultList");
-const retryButton = document.querySelector("#retryButton");
-const cancelButton = document.querySelector("#cancelButton");
+const jobSummary = document.querySelector("#jobSummary");
+const jobList = document.querySelector("#jobList");
 const themeToggle = document.querySelector("#themeToggle");
 
 let activePlaylistLink = "";
-let activeJobID = "";
 let pollTimer = 0;
 const themeStorageKey = "music-lib-theme";
+
+function readStoredTheme() {
+  try {
+    return localStorage.getItem(themeStorageKey);
+  } catch (_) {
+    return "";
+  }
+}
+
+function writeStoredTheme(theme) {
+  try {
+    localStorage.setItem(themeStorageKey, theme);
+  } catch (_) {
+    // Theme persistence is optional; keep the UI usable if storage is blocked.
+  }
+}
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -48,15 +57,18 @@ function showNotice(message, isError = false) {
 function applyTheme(theme) {
   const nextTheme = theme === "dark" ? "dark" : "light";
   document.documentElement.dataset.theme = nextTheme;
-  localStorage.setItem(themeStorageKey, nextTheme);
+  writeStoredTheme(nextTheme);
+  if (!themeToggle) return;
   themeToggle.textContent = nextTheme === "dark" ? "白天" : "夜间";
   themeToggle.setAttribute("aria-pressed", String(nextTheme === "dark"));
 }
 
-themeToggle.addEventListener("click", () => {
-  const currentTheme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
-  applyTheme(currentTheme === "dark" ? "light" : "dark");
-});
+if (themeToggle) {
+  themeToggle.addEventListener("click", () => {
+    const currentTheme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+    applyTheme(currentTheme === "dark" ? "light" : "dark");
+  });
+}
 
 function escapeText(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -118,39 +130,29 @@ downloadButton.addEventListener("click", async () => {
         cookie: cookieInput.value.trim(),
       }),
     });
-    activeJobID = job.id;
     jobPanel.classList.remove("hidden");
-    renderJob(job);
+    renderJobs([job]);
     startPolling();
+    downloadButton.disabled = false;
+    showNotice("下载任务已在后台开始。");
   } catch (error) {
     showNotice(error.message, true);
     downloadButton.disabled = false;
   }
 });
 
-retryButton.addEventListener("click", async () => {
-  if (!activeJobID) return;
-  retryButton.disabled = true;
-  showNotice("正在重试失败项...");
+jobList.addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-action][data-job-id]");
+  if (!button) return;
+  const jobID = button.dataset.jobId;
+  const action = button.dataset.action;
+  button.disabled = true;
+  showNotice(action === "retry" ? "正在重试失败项..." : "正在停止下载...");
   try {
-    const job = await api(`/api/jobs/${activeJobID}/retry`, { method: "POST" });
-    renderJob(job);
+    await api(`/api/jobs/${jobID}/${action}`, { method: "POST" });
+    await fetchJobs();
     startPolling();
-  } catch (error) {
-    showNotice(error.message, true);
-  }
-});
-
-cancelButton.addEventListener("click", async () => {
-  if (!activeJobID) return;
-  cancelButton.disabled = true;
-  showNotice("正在停止下载...");
-  try {
-    const job = await api(`/api/jobs/${activeJobID}/cancel`, { method: "POST" });
-    renderJob(job);
-    window.clearInterval(pollTimer);
-    downloadButton.disabled = false;
-    showNotice("下载已停止。");
+    showNotice(action === "retry" ? "失败项已重新调度。" : "下载已停止。");
   } catch (error) {
     showNotice(error.message, true);
   }
@@ -174,37 +176,52 @@ function renderPlaylist(playlist, songs) {
 
 function startPolling() {
   window.clearInterval(pollTimer);
-  pollTimer = window.setInterval(fetchJob, 1200);
-  fetchJob();
+  pollTimer = window.setInterval(fetchJobs, 1200);
+  fetchJobs();
 }
 
-async function fetchJob() {
-  if (!activeJobID) return;
+async function fetchJobs() {
   try {
-    const job = await api(`/api/jobs/${activeJobID}`);
-    renderJob(job);
-    if (["completed", "completed_with_errors", "failed", "canceled"].includes(job.status)) {
+    const data = await api("/api/jobs");
+    const jobs = data.jobs || [];
+    renderJobs(jobs);
+    if (jobs.some((job) => isActiveJob(job.status))) {
+      if (!pollTimer) {
+        pollTimer = window.setInterval(fetchJobs, 1200);
+      }
+    } else {
       window.clearInterval(pollTimer);
+      pollTimer = 0;
       downloadButton.disabled = false;
     }
   } catch (error) {
     showNotice(error.message, true);
     window.clearInterval(pollTimer);
+    pollTimer = 0;
   }
 }
 
-function renderJob(job) {
+function renderJobs(jobs) {
+  if (!jobs.length) {
+    jobPanel.classList.add("hidden");
+    jobList.innerHTML = "";
+    jobSummary.textContent = "暂无任务";
+    return;
+  }
+  jobPanel.classList.remove("hidden");
+  const active = jobs.filter((job) => isActiveJob(job.status)).length;
+  const failed = jobs.filter((job) => (job.failure_count || 0) > 0).length;
+  jobSummary.textContent = `${jobs.length} 个任务 · 运行中 ${active} · 有失败 ${failed}`;
+  jobList.innerHTML = jobs.map(renderJobCard).join("");
+}
+
+function renderJobCard(job) {
   const done = (job.success_count || 0) + (job.failure_count || 0);
   const total = job.total || 0;
   const percent = total > 0 ? Math.round((done / total) * 100) : 0;
-  jobTitle.textContent = job.playlist?.name || "下载任务";
-  jobStatus.textContent = job.status;
-  jobCounts.textContent = `${done} / ${total} · 成功 ${job.success_count || 0} · 失败 ${job.failure_count || 0}`;
-  currentSong.textContent = job.current_song ? `当前：${job.current_song}` : "";
-  progressBar.style.width = `${percent}%`;
-  cancelButton.disabled = job.status !== "running";
-  retryButton.disabled = (job.failure_count || 0) === 0 || job.status === "running";
-  resultList.innerHTML = (job.results || []).map((result) => `
+  const canCancel = job.status === "running" || job.status === "queued";
+  const canRetry = (job.failure_count || 0) > 0 && !isActiveJob(job.status);
+  const results = (job.results || []).map((result) => `
     <div class="result">
       <strong class="status-${escapeText(result.status)}">${statusLabel(result.status)}</strong>
       <div>
@@ -213,6 +230,38 @@ function renderJob(job) {
       </div>
     </div>
   `).join("");
+  return `
+    <article class="job-card">
+      <div class="job-card-head">
+        <div>
+          <h3>${escapeText(job.playlist?.name || "下载任务")}</h3>
+          <div class="stats">
+            <span>${statusLabel(job.status)}</span>
+            <span>${done} / ${total}</span>
+            <span>成功 ${job.success_count || 0}</span>
+            <span>失败 ${job.failure_count || 0}</span>
+            <span>${escapeText(job.quality || "mp3")}</span>
+          </div>
+        </div>
+        <div class="job-actions">
+          <button type="button" data-action="cancel" data-job-id="${escapeText(job.id)}" ${canCancel ? "" : "disabled"}>停止下载</button>
+          <button type="button" data-action="retry" data-job-id="${escapeText(job.id)}" ${canRetry ? "" : "disabled"}>重试失败项</button>
+        </div>
+      </div>
+      <div class="progress" aria-label="下载进度 ${percent}%">
+        <div class="progress-bar" style="width: ${percent}%"></div>
+      </div>
+      <div class="stats">
+        <span>${job.current_song ? `当前：${escapeText(job.current_song)}` : "后台下载"}</span>
+        <span>${escapeText(job.download_dir || "")}</span>
+      </div>
+      <div class="result-list">${results}</div>
+    </article>
+  `;
+}
+
+function isActiveJob(status) {
+  return status === "queued" || status === "running";
 }
 
 function statusLabel(status) {
@@ -225,5 +274,6 @@ function statusLabel(status) {
   }[status] || status;
 }
 
-applyTheme(localStorage.getItem(themeStorageKey) || document.documentElement.dataset.theme);
+applyTheme(readStoredTheme() || document.documentElement.dataset.theme);
 loadConfig();
+fetchJobs();

@@ -90,6 +90,26 @@ func TestJobPassesCustomDownloadRootToDownloader(t *testing.T) {
 	}
 }
 
+func TestListReturnsJobsNewestFirstWithoutCookie(t *testing.T) {
+	downloader := &fakeDownloader{fail: map[string]bool{}}
+	store := NewStore(downloader, 1)
+	playlist := &model.Playlist{ID: "p1", Name: "列表"}
+	first := store.Create(playlist, []model.Song{{ID: "1", Name: "A", Artist: "AA"}}, "/tmp/music", "MUSIC_U=secret", "mp3")
+	time.Sleep(time.Nanosecond)
+	second := store.Create(playlist, []model.Song{{ID: "2", Name: "B", Artist: "BB"}}, "/tmp/music", "", "mp3")
+
+	got := store.List()
+	if len(got) != 2 {
+		t.Fatalf("List length = %d, want 2", len(got))
+	}
+	if got[0].ID != second.ID || got[1].ID != first.ID {
+		t.Fatalf("List order = %s, %s; want newest first", got[0].ID, got[1].ID)
+	}
+	if got[1].Cookie != "" {
+		t.Fatal("job list exposed cookie")
+	}
+}
+
 func TestJobPassesCookieToDownloaderWithoutExposingIt(t *testing.T) {
 	downloader := &fakeDownloader{fail: map[string]bool{}}
 	store := NewStore(downloader, 1)

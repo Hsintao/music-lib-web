@@ -3,6 +3,7 @@ package jobs
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -129,6 +130,19 @@ func (s *Store) Get(id string) (*Job, bool) {
 		return nil, false
 	}
 	return cloneJob(job), true
+}
+
+func (s *Store) List() []*Job {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	items := make([]*Job, 0, len(s.jobs))
+	for _, job := range s.jobs {
+		items = append(items, cloneJob(job))
+	}
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].CreatedAt.After(items[j].CreatedAt)
+	})
+	return items
 }
 
 func (s *Store) Run(ctx context.Context, id string) {

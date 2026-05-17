@@ -55,6 +55,7 @@ func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (a *API) routes() {
 	a.mux.HandleFunc("GET /api/config", a.handleConfig)
 	a.mux.HandleFunc("POST /api/playlists/parse", a.handleParsePlaylist)
+	a.mux.HandleFunc("GET /api/jobs", a.handleListJobs)
 	a.mux.HandleFunc("POST /api/jobs", a.handleCreateJob)
 	a.mux.HandleFunc("GET /api/jobs/{id}", a.handleGetJob)
 	a.mux.HandleFunc("POST /api/jobs/{id}/retry", a.handleRetryJob)
@@ -87,6 +88,10 @@ func (a *API) handleParsePlaylist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"playlist": playlist, "songs": songs})
+}
+
+func (a *API) handleListJobs(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{"jobs": a.jobs.List()})
 }
 
 func (a *API) handleCreateJob(w http.ResponseWriter, r *http.Request) {
@@ -127,11 +132,18 @@ func (a *API) handleGetJob(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) handleRetryJob(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	if err := a.jobs.RetryFailures(r.Context(), id); err != nil {
-		writeError(w, http.StatusNotFound, err)
+	if _, ok := a.jobs.Get(id); !ok {
+		writeError(w, http.StatusNotFound, fmt.Errorf("job %s not found", id))
 		return
 	}
-	job, _ := a.jobs.Get(id)
+	go func() {
+		_ = a.jobs.RetryFailures(context.Background(), id)
+	}()
+	job, ok := a.jobs.Get(id)
+	if !ok {
+		writeError(w, http.StatusNotFound, fmt.Errorf("job %s not found", id))
+		return
+	}
 	writeJSON(w, http.StatusAccepted, job)
 }
 

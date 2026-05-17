@@ -134,11 +134,11 @@ select {
   gap: 10px;
 }
 
-#cancelButton {
+.job-actions button[data-action="cancel"] {
   background: var(--secondary);
 }
 
-#cancelButton:hover {
+.job-actions button[data-action="cancel"]:hover {
   background: var(--secondary-hover);
 }
 
@@ -153,6 +153,7 @@ select {
 
 h1,
 h2,
+h3,
 p {
   margin-top: 0;
 }
@@ -165,6 +166,11 @@ h1 {
 
 h2 {
   margin-bottom: 10px;
+}
+
+h3 {
+  margin-bottom: 8px;
+  font-size: 22px;
 }
 
 .config,
@@ -303,6 +309,25 @@ th {
   padding: 20px;
 }
 
+.job-list {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.job-card {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  padding: 16px;
+}
+
+.job-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
 .progress {
   height: 12px;
   margin: 12px 0;
@@ -332,6 +357,10 @@ th {
   padding: 10px 12px;
   border: 1px solid var(--line);
   background: var(--field);
+}
+
+.result small {
+  overflow-wrap: anywhere;
 }
 
 .status-success {
@@ -390,6 +419,7 @@ th {
   .topbar,
   .playlist-heading,
   .job-header,
+  .job-card-head,
   .stats,
   .input-row,
   .path-field,
@@ -402,5 +432,10 @@ th {
   .topbar-actions {
     justify-items: start;
     min-width: 0;
+  }
+
+  .job-actions {
+    display: grid;
+    grid-template-columns: 1fr;
   }
 }

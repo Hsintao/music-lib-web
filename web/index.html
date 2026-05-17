@@ -7,7 +7,11 @@
     <title>网易云歌单下载</title>
     <link rel="stylesheet" href="/styles.css" />
     <script>
-      document.documentElement.dataset.theme = localStorage.getItem("music-lib-theme") || "light";
+      try {
+        document.documentElement.dataset.theme = localStorage.getItem("music-lib-theme") || "light";
+      } catch (_) {
+        document.documentElement.dataset.theme = "light";
+      }
     </script>
   </head>
   <body>
@@ -78,23 +82,12 @@
         <section class="job-panel hidden" id="jobPanel">
           <div class="job-header">
             <div>
-              <p class="eyebrow">下载任务</p>
-              <h2 id="jobTitle">等待开始</h2>
+              <p class="eyebrow">后台任务</p>
+              <h2>下载队列</h2>
             </div>
-            <div class="job-actions">
-              <button id="cancelButton" type="button" disabled>停止下载</button>
-              <button id="retryButton" type="button" disabled>重试失败项</button>
-            </div>
+            <div class="config" id="jobSummary">暂无任务</div>
           </div>
-          <div class="progress">
-            <div class="progress-bar" id="progressBar"></div>
-          </div>
-          <div class="stats">
-            <span id="jobStatus">queued</span>
-            <span id="jobCounts">0 / 0</span>
-            <span id="currentSong"></span>
-          </div>
-          <div class="result-list" id="resultList"></div>
+          <div class="job-list" id="jobList"></div>
         </section>
       </section>
 
