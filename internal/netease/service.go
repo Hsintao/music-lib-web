@@ -114,6 +114,7 @@ func ResolveSongPath(dir string, index int, song model.Song) (string, bool) {
 }
 
 func (s *Service) DownloadSong(ctx context.Context, playlist *model.Playlist, song model.Song, index int, downloadRoot string, cookie string, quality string) (jobs.DownloadResult, error) {
+	originalSong := song
 	dir := PlaylistDownloadDir(downloadRoot, playlist)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return jobs.DownloadResult{}, err
@@ -121,7 +122,6 @@ func (s *Service) DownloadSong(ctx context.Context, playlist *model.Playlist, so
 	if path, exists := ResolveSongPath(dir, index, song); exists {
 		return jobs.DownloadResult{FilePath: path, Source: "cache"}, nil
 	}
-	applyQuality(&song, quality)
 
 	downloadURL, chosenSong, source, fromFallback, err := s.resolveDownloadURL(ctx, song, cookie, quality)
 	if err != nil {
@@ -140,6 +140,24 @@ func (s *Service) DownloadSong(ctx context.Context, playlist *model.Playlist, so
 	if err := s.downloadToPath(ctx, downloadURL, path); err != nil {
 		if fromFallback {
 			return jobs.DownloadResult{}, err
+		}
+		if source == "netease-lossless" {
+			mp3URL, mp3Song, mp3Err := s.resolveNeteaseURLForQuality(cookie, originalSong, "mp3")
+			if mp3Err == nil && strings.TrimSpace(mp3URL) != "" {
+				song = mp3Song
+				source = "netease-mp3"
+				if song.Ext == "" {
+					song.Ext = extFromURL(mp3URL)
+				}
+				path = filepath.Join(dir, SongFilename(index, song))
+				if _, exists := ResolveSongPath(dir, index, song); exists {
+					return jobs.DownloadResult{FilePath: path, Source: "cache"}, nil
+				}
+				if err := s.downloadToPath(ctx, mp3URL, path); err == nil {
+					_ = s.embedMetadata(ctx, path, song, index, cookie)
+					return jobs.DownloadResult{FilePath: path, Source: source}, nil
+				}
+			}
 		}
 		// Primary source failed at transfer stage, attempt cross-source URL fallback.
 		altURL, altSong, altSource, _, altErr := s.resolveFallbackURL(ctx, song)
@@ -165,11 +183,28 @@ func (s *Service) DownloadSong(ctx context.Context, playlist *model.Playlist, so
 }
 
 func (s *Service) resolveDownloadURL(ctx context.Context, song model.Song, cookie string, quality string) (string, model.Song, string, bool, error) {
-	url, err := s.neteaseURLResolver(strings.TrimSpace(cookie), &song)
+	if quality == "lossless" {
+		url, resolvedSong, err := s.resolveNeteaseURLForQuality(cookie, song, "lossless")
+		if err == nil && strings.TrimSpace(url) != "" {
+			return url, resolvedSong, "netease-lossless", false, nil
+		}
+		url, resolvedSong, err = s.resolveNeteaseURLForQuality(cookie, song, "mp3")
+		if err == nil && strings.TrimSpace(url) != "" {
+			return url, resolvedSong, "netease-mp3", false, nil
+		}
+		return s.resolveFallbackURL(ctx, song)
+	}
+	url, resolvedSong, err := s.resolveNeteaseURLForQuality(cookie, song, "mp3")
 	if err == nil && strings.TrimSpace(url) != "" {
-		return url, song, "netease", false, nil
+		return url, resolvedSong, "netease-mp3", false, nil
 	}
 	return s.resolveFallbackURL(ctx, song)
+}
+
+func (s *Service) resolveNeteaseURLForQuality(cookie string, song model.Song, quality string) (string, model.Song, error) {
+	applyQuality(&song, quality)
+	url, err := s.neteaseURLResolver(strings.TrimSpace(cookie), &song)
+	return url, song, err
 }
 
 func (s *Service) resolveFallbackURL(ctx context.Context, song model.Song) (string, model.Song, string, bool, error) {

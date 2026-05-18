@@ -1,6 +1,7 @@
 package netease
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -60,5 +61,38 @@ func TestResolveSongPathSkipsExistingFile(t *testing.T) {
 	}
 	if !exists {
 		t.Fatal("ResolveSongPath exists = false, want true")
+	}
+}
+
+func TestResolveDownloadURLFallsBackFromLosslessToMP3(t *testing.T) {
+	service := New()
+	service.fallbacks = nil
+	var levels []string
+	service.neteaseURLResolver = func(cookie string, song *model.Song) (string, error) {
+		levels = append(levels, song.Extra["netease_level"])
+		if song.Extra["netease_level"] == "lossless" {
+			return "", errors.New("lossless unavailable")
+		}
+		return "https://example.com/song.mp3", nil
+	}
+
+	url, song, source, fromFallback, err := service.resolveDownloadURL(nil, model.Song{Name: "Song", Artist: "Artist"}, "", "lossless")
+	if err != nil {
+		t.Fatalf("resolveDownloadURL returned error: %v", err)
+	}
+	if url != "https://example.com/song.mp3" {
+		t.Fatalf("url = %q, want mp3 url", url)
+	}
+	if source != "netease-mp3" {
+		t.Fatalf("source = %q, want netease-mp3", source)
+	}
+	if fromFallback {
+		t.Fatal("fromFallback = true, want false")
+	}
+	if song.Ext != "mp3" {
+		t.Fatalf("song.Ext = %q, want mp3", song.Ext)
+	}
+	if len(levels) != 2 || levels[0] != "lossless" || levels[1] != "standard" {
+		t.Fatalf("levels = %#v, want lossless then standard", levels)
 	}
 }

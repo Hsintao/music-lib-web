@@ -266,10 +266,10 @@ func (s *Store) runOne(ctx context.Context, id string, idx int) {
 
 func NormalizeQuality(quality string) string {
 	switch quality {
-	case "lossless":
-		return "lossless"
-	default:
+	case "mp3":
 		return "mp3"
+	default:
+		return "lossless"
 	}
 }
 

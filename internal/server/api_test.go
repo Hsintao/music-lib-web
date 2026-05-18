@@ -144,6 +144,28 @@ func TestCreateJobAcceptsLosslessQuality(t *testing.T) {
 	}
 }
 
+func TestCreateJobDefaultsToLosslessQuality(t *testing.T) {
+	api := New(config.Default(), &fakeMusicService{}, jobs.NewStore(fakeJobDownloader{}, 1))
+	body := bytes.NewBufferString(`{"playlist_link":"https://music.163.com/#/playlist?id=42"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/jobs", body)
+	rec := httptest.NewRecorder()
+
+	api.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusAccepted, rec.Body.String())
+	}
+	var created struct {
+		Quality string `json:"quality"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("Unmarshal create response: %v", err)
+	}
+	if created.Quality != "lossless" {
+		t.Fatalf("Quality = %q, want default lossless", created.Quality)
+	}
+}
+
 func TestCancelJobEndpoint(t *testing.T) {
 	api := New(config.Default(), &fakeMusicService{}, jobs.NewStore(fakeJobDownloader{}, 1))
 	create := httptest.NewRequest(http.MethodPost, "/api/jobs", bytes.NewBufferString(`{"playlist_link":"https://music.163.com/#/playlist?id=42"}`))

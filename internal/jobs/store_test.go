@@ -144,6 +144,23 @@ func TestJobPassesQualityToDownloader(t *testing.T) {
 	}
 }
 
+func TestDefaultQualityIsLossless(t *testing.T) {
+	downloader := &fakeDownloader{fail: map[string]bool{}}
+	store := NewStore(downloader, 1)
+	playlist := &model.Playlist{ID: "p1", Name: "列表"}
+	job := store.Create(playlist, []model.Song{{ID: "1", Name: "A", Artist: "AA"}}, "/tmp/music", "", "")
+
+	store.Run(context.Background(), job.ID)
+
+	if downloader.lastQuality != "lossless" {
+		t.Fatalf("quality = %q, want lossless", downloader.lastQuality)
+	}
+	got, _ := store.Get(job.ID)
+	if got.Quality != "lossless" {
+		t.Fatalf("job quality = %q, want lossless", got.Quality)
+	}
+}
+
 func TestCancelRunningJob(t *testing.T) {
 	downloader := &fakeDownloader{
 		fail:    map[string]bool{},
