@@ -11,7 +11,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/music-l
 FROM debian:bookworm-slim
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates tzdata \
+  && apt-get install -y --no-install-recommends ca-certificates gosu tzdata \
   && rm -rf /var/lib/apt/lists/* \
   && useradd --system --uid 10001 --create-home --home-dir /home/music music \
   && mkdir -p /app /data/Downloads \
@@ -21,10 +21,9 @@ WORKDIR /app
 
 COPY --from=builder /out/music-lib-web /app/music-lib-web
 COPY web /app/web
-
-USER music
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE 51873
 
-ENTRYPOINT ["/app/music-lib-web"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["--addr", "0.0.0.0:51873", "--download-dir", "/data/Downloads", "--cookie-file", "/data/.music-lib-web-cookie", "--concurrency", "3"]

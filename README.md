@@ -97,7 +97,8 @@ docker compose logs -f
 
 如果不想本地构建，而是直接使用 Docker Hub 镜像，可以新建一个 `compose.yml`：
 
-默认下载路径为容器里的`/data/Downloads`
+默认下载路径为容器里的 `/data/Downloads`。
+
 ```yaml
 services:
   music-lib-web:
@@ -108,7 +109,8 @@ services:
       - "51873:51873"
     volumes:
       - ./docker-data:/data
-      # -./你的路径:/data/Downloads
+      # 也可以把宿主机指定目录直接挂载为下载目录：
+      # - ./你的路径:/data/Downloads
 ```
 
 然后启动：
@@ -154,6 +156,20 @@ docker run --rm \
 --download-dir /data/Downloads
 --cookie-file /data/.music-lib-web-cookie
 --concurrency 3
+```
+
+容器启动时会自动创建 `/data/Downloads`，并修正 `/data` 的写入权限。如果仍然遇到 `permission denied`，通常是宿主机目录被只读挂载、位于受限目录，或 Docker 进程本身没有访问该路径的权限。可以先在宿主机执行：
+
+```bash
+mkdir -p docker-data/Downloads
+chmod -R u+rwX docker-data
+```
+
+如果使用的是旧镜像，请先拉取新版或重新构建：
+
+```bash
+docker compose pull
+docker compose up -d --build
 ```
 
 ## 启动参数
